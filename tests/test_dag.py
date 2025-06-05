@@ -4,7 +4,14 @@ Tests for the DAG module.
 
 import unittest
 import asyncio
-from tygent import DAG, ToolNode, LLMNode
+import sys
+import os
+
+# Add the parent directory to the path so we can import tygent
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from tygent.dag import DAG
+from tygent.nodes import ToolNode, LLMNode
 
 class TestDAG(unittest.TestCase):
     """Test the DAG implementation."""
