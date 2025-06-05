@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tygent"
+version = "0.1.0"
+description = "Transform LLM Agents into High-Performance Engines with DAG optimization"
+readme = "README.md"
+authors = [
+    {name = "Tygent AI", email = "info@tygent.ai"},
+]
+license = {text = "CC BY-NC 4.0"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "openai>=1.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/tygent-ai/tygent-py"
+"Bug Tracker" = "https://github.com/tygent-ai/tygent-py/issues"
+"Documentation" = "https://tygent.ai/docs"
+
+[tool.pytest]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 88
+target-version = ["py37", "py38", "py39", "py310"]
+
+[tool.isort]
+profile = "black"
