@@ -53,5 +53,5 @@ __all__ = [
     "SalesforceIntegration",
     "AutoGenIntegration",
     "LangGraphIntegration",
-    "CrewAIIntegration"
+    "CrewAIIntegration",
 ]
