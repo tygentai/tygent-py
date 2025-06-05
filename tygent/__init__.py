@@ -10,29 +10,32 @@ __version__ = "0.1.0"
 
 # Import core modules
 from .dag import DAG
-from .nodes import BaseNode, LLMNode, ToolNode, MemoryNode
-from .scheduler import Scheduler, AdaptiveExecutor
+from .nodes import Node, LLMNode, ToolNode, BaseNode
+from .scheduler import Scheduler
 from .agent import Agent
 from .multi_agent import (
     MultiAgentManager, 
-    CommunicationBus, 
-    Message, 
-    AgentRole, 
-    OptimizationSettings
+    CommunicationBus,
+    Message
 )
+from .accelerate import accelerate
+from .adaptive_executor import AdaptiveExecutor, RewriteRule, create_fallback_rule, create_conditional_branch_rule, create_resource_adaptation_rule
 
 __all__ = [
     "DAG",
-    "BaseNode", 
-    "LLMNode", 
-    "ToolNode", 
-    "MemoryNode",
+    "Node", 
+    "LLMNode",
+    "ToolNode",
+    "BaseNode",
     "Scheduler",
-    "AdaptiveExecutor",
     "Agent",
     "MultiAgentManager",
     "CommunicationBus",
     "Message",
-    "AgentRole",
-    "OptimizationSettings"
+    "accelerate",
+    "AdaptiveExecutor",
+    "RewriteRule",
+    "create_fallback_rule",
+    "create_conditional_branch_rule",
+    "create_resource_adaptation_rule"
 ]

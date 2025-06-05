@@ -1,0 +1,322 @@
+"""
+Unit tests for the multi-agent module.
+"""
+
+import unittest
+import asyncio
+from unittest.mock import patch, MagicMock
+import sys
+import os
+import json
+
+# Add the parent directory to the path so we can import tygent
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from tygent.multi_agent import (
+    Message,
+    CommunicationBus, 
+    MultiAgentManager
+)
+from tygent.dag import DAG
+
+class TestMessage(unittest.TestCase):
+    """Tests for the Message class."""
+    
+    def test_message_creation(self):
+        """Test that messages can be created with the correct attributes."""
+        message = Message(
+            from_agent="agent1",
+            to_agent="agent2",
+            content="Hello, agent2!",
+            message_type="standard"
+        )
+        
+        self.assertEqual(message.from_agent, "agent1")
+        self.assertEqual(message.to_agent, "agent2")
+        self.assertEqual(message.content, "Hello, agent2!")
+        self.assertEqual(message.message_type, "standard")
+        self.assertTrue(hasattr(message, "id"))
+        self.assertTrue(hasattr(message, "timestamp"))
+    
+    def test_message_to_dict(self):
+        """Test that messages can be converted to dictionaries."""
+        message = Message(
+            from_agent="agent1",
+            to_agent="agent2",
+            content="Hello, agent2!",
+            message_type="standard"
+        )
+        
+        message_dict = message.to_dict()
+        
+        self.assertEqual(message_dict["from"], "agent1")
+        self.assertEqual(message_dict["to"], "agent2")
+        self.assertEqual(message_dict["content"], "Hello, agent2!")
+        self.assertEqual(message_dict["type"], "standard")
+        self.assertTrue("id" in message_dict)
+        self.assertTrue("timestamp" in message_dict)
+
+
+class TestCommunicationBus(unittest.TestCase):
+    """Tests for the CommunicationBus class."""
+    
+    def test_publish_and_subscribe(self):
+        """Test that messages can be published and subscribers notified."""
+        bus = CommunicationBus()
+        
+        # Create a mock callback
+        callback = MagicMock()
+        
+        # Subscribe to messages for agent2
+        bus.subscribe("agent2", callback)
+        
+        # Create and publish a message
+        message = Message(
+            from_agent="agent1",
+            to_agent="agent2",
+            content="Hello, agent2!",
+            message_type="standard"
+        )
+        bus.publish(message)
+        
+        # Check that the callback was called with the message
+        callback.assert_called_once()
+        self.assertEqual(callback.call_args[0][0], message)
+    
+    def test_broadcast_messages(self):
+        """Test that broadcast messages are delivered to all subscribers."""
+        bus = CommunicationBus()
+        
+        # Create mock callbacks
+        callback1 = MagicMock()
+        callback2 = MagicMock()
+        broadcast_callback = MagicMock()
+        
+        # Subscribe to specific agents and broadcasts
+        bus.subscribe("agent1", callback1)
+        bus.subscribe("agent2", callback2)
+        bus.subscribe("*", broadcast_callback)
+        
+        # Create and publish a broadcast message
+        message = Message(
+            from_agent="agent1",
+            to_agent="all",
+            content="Hello, everyone!",
+            message_type="broadcast"
+        )
+        bus.publish(message)
+        
+        # Check that the broadcast callback was called
+        broadcast_callback.assert_called_once()
+        self.assertEqual(broadcast_callback.call_args[0][0], message)
+    
+    def test_get_messages(self):
+        """Test that messages can be retrieved from the bus."""
+        bus = CommunicationBus()
+        
+        # Create and publish messages
+        message1 = Message("agent1", "agent2", "Hello 1")
+        message2 = Message("agent1", "agent2", "Hello 2")
+        message3 = Message("agent2", "agent1", "Response")
+        
+        bus.publish(message1)
+        bus.publish(message2)
+        bus.publish(message3)
+        
+        # Get all messages
+        all_messages = bus.get_messages()
+        self.assertEqual(len(all_messages), 3)
+        
+        # Get messages for agent1
+        agent1_messages = bus.get_messages("agent1")
+        self.assertEqual(len(agent1_messages), 1)
+        self.assertEqual(agent1_messages[0], message3)
+        
+        # Test with limit
+        limited_messages = bus.get_messages(limit=2)
+        self.assertEqual(len(limited_messages), 2)
+        self.assertEqual(limited_messages[0], message2)
+        self.assertEqual(limited_messages[1], message3)
+
+
+class TestAgentRole(unittest.TestCase):
+    """Tests for the AgentRole class."""
+    
+    def test_agent_role_creation(self):
+        """Test that agent roles can be created with the correct attributes."""
+        role = AgentRole(
+            name="Researcher",
+            description="Finds information",
+            system_prompt="You are a researcher"
+        )
+        
+        self.assertEqual(role.name, "Researcher")
+        self.assertEqual(role.description, "Finds information")
+        self.assertEqual(role.system_prompt, "You are a researcher")
+
+
+class TestOptimizationSettings(unittest.TestCase):
+    """Tests for the OptimizationSettings class."""
+    
+    def test_optimization_settings_creation(self):
+        """Test that optimization settings can be created with the correct attributes."""
+        settings = OptimizationSettings(
+            batch_messages=True,
+            parallel_thinking=False,
+            shared_memory=True,
+            early_stop_threshold=0.75
+        )
+        
+        self.assertTrue(settings.batch_messages)
+        self.assertFalse(settings.parallel_thinking)
+        self.assertTrue(settings.shared_memory)
+        self.assertEqual(settings.early_stop_threshold, 0.75)
+    
+    def test_default_values(self):
+        """Test the default values for optimization settings."""
+        settings = OptimizationSettings()
+        
+        self.assertFalse(settings.batch_messages)
+        self.assertTrue(settings.parallel_thinking)
+        self.assertTrue(settings.shared_memory)
+        self.assertEqual(settings.early_stop_threshold, 0.0)
+
+
+class TestMultiAgentManager(unittest.TestCase):
+    """Tests for the MultiAgentManager class."""
+    
+    def test_add_agent(self):
+        """Test that agents can be added to the manager."""
+        manager = MultiAgentManager()
+        
+        role = AgentRole(
+            name="Researcher",
+            description="Finds information",
+            system_prompt="You are a researcher"
+        )
+        
+        agent = manager.add_agent("researcher", role)
+        
+        self.assertEqual(len(manager.agents), 1)
+        self.assertEqual(len(manager.agent_roles), 1)
+        self.assertEqual(manager.agents["researcher"], agent)
+        self.assertEqual(manager.agent_roles["researcher"], role)
+    
+    def test_create_conversation_dag(self):
+        """Test that conversation DAGs can be created."""
+        manager = MultiAgentManager()
+        
+        # Add agents
+        manager.add_agent("agent1", AgentRole("Role1", "Description1", "Prompt1"))
+        manager.add_agent("agent2", AgentRole("Role2", "Description2", "Prompt2"))
+        
+        # Create a DAG with parallel thinking
+        optimization_settings = OptimizationSettings(parallel_thinking=True)
+        dag = manager.create_conversation_dag("Test query", optimization_settings)
+        
+        # Verify DAG structure
+        self.assertIn("input", dag.nodes)
+        self.assertIn("agent_agent1", dag.nodes)
+        self.assertIn("agent_agent2", dag.nodes)
+        self.assertIn("output", dag.nodes)
+        
+        # Verify edges for parallel execution
+        self.assertIn("agent_agent1", dag.edges["input"])
+        self.assertIn("agent_agent2", dag.edges["input"])
+        self.assertIn("output", dag.edges["agent_agent1"])
+        self.assertIn("output", dag.edges["agent_agent2"])
+        
+        # Create a DAG with sequential thinking
+        optimization_settings = OptimizationSettings(parallel_thinking=False)
+        dag = manager.create_conversation_dag("Test query", optimization_settings)
+        
+        # Verify edges for sequential execution
+        self.assertIn("agent_agent1", dag.edges["input"])
+        self.assertIn("agent_agent2", dag.edges["agent_agent1"])
+        self.assertIn("output", dag.edges["agent_agent2"])
+    
+    def test_find_critical_path(self):
+        """Test that the critical path can be found in a DAG."""
+        manager = MultiAgentManager()
+        
+        # Create a simple DAG manually
+        dag = DAG("test_dag")
+        
+        # Add nodes and edges that form a known critical path
+        from tygent.nodes import ToolNode, LLMNode
+        
+        input_node = ToolNode("input", lambda x: x)
+        agent1_node = LLMNode("agent_agent1", "model", "prompt")
+        agent2_node = LLMNode("agent_agent2", "model", "prompt")
+        output_node = ToolNode("output", lambda x: x)
+        
+        dag.add_node(input_node)
+        dag.add_node(agent1_node)
+        dag.add_node(agent2_node)
+        dag.add_node(output_node)
+        
+        # Path: input -> agent1 -> output
+        dag.add_edge("input", "agent_agent1")
+        dag.add_edge("agent_agent1", "output")
+        
+        # Alternative path: input -> agent2 -> output
+        dag.add_edge("input", "agent_agent2")
+        dag.add_edge("agent_agent2", "output")
+        
+        critical_path = manager.find_critical_path(dag)
+        
+        # The critical path should contain these nodes (exact order depends on implementation)
+        self.assertIn("input", critical_path)
+        self.assertTrue("agent_agent1" in critical_path or "agent_agent2" in critical_path)
+        self.assertIn("output", critical_path)
+
+
+class TestMultiAgentExecution(unittest.IsolatedAsyncioTestCase):
+    """Tests for the multi-agent execution functionality."""
+    
+    async def test_execute_conversation(self):
+        """Test that a conversation can be executed."""
+        manager = MultiAgentManager()
+        
+        # Add agents
+        manager.add_agent("agent1", AgentRole("Role1", "Description1", "Prompt1"))
+        manager.add_agent("agent2", AgentRole("Role2", "Description2", "Prompt2"))
+        
+        # Create patched version of _execute_dag
+        original_execute_dag = manager._execute_dag
+        
+        async def patched_execute_dag(dag, initial_inputs):
+            """Patched version of _execute_dag that returns a predetermined result."""
+            return {
+                "input": initial_inputs,
+                "agent_agent1": {
+                    "agent_id": "agent1",
+                    "response": "Response from Agent 1",
+                    "timestamp": 12345
+                },
+                "agent_agent2": {
+                    "agent_id": "agent2",
+                    "response": "Response from Agent 2",
+                    "timestamp": 12346
+                },
+                "output": {
+                    "result": "Combined result"
+                }
+            }
+        
+        # Apply the patch
+        manager._execute_dag = patched_execute_dag
+        
+        # Execute the conversation
+        results = await manager.execute_conversation("Test query")
+        
+        # Verify results
+        self.assertEqual(results["agent_agent1"]["response"], "Response from Agent 1")
+        self.assertEqual(results["agent_agent2"]["response"], "Response from Agent 2")
+        
+        # Restore the original method
+        manager._execute_dag = original_execute_dag
+
+
+if __name__ == "__main__":
+    unittest.main()

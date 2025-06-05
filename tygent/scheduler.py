@@ -1,175 +1,177 @@
 """
-Scheduler module provides execution engines for running DAGs efficiently.
+Scheduler for executing DAGs in Tygent.
 """
-
 import asyncio
-from typing import Dict, List, Any, Set, Optional, Tuple
+from typing import Dict, List, Any, Optional
+from tygent.dag import DAG
 
-from .dag import DAG
 
 class Scheduler:
     """
-    Scheduler executes a DAG by scheduling nodes in topological order.
+    Scheduler for executing DAGs.
     """
     
-    def __init__(self, dag: DAG, max_workers: int = 10):
+    def __init__(self, dag: DAG):
         """
         Initialize a scheduler.
         
         Args:
-            dag: The DAG to execute
-            max_workers: Maximum number of parallel workers (default: 10)
+            dag: The DAG to schedule
         """
         self.dag = dag
-        self.max_workers = max_workers
+        self.max_parallel_nodes = 4
+        self.max_execution_time = 60000  # milliseconds
+        self.priority_nodes = []
     
-    async def execute(self, input_data: Any) -> Dict[str, Any]:
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Execute the DAG with the given input.
+        Execute the DAG with the given inputs.
         
         Args:
-            input_data: Input data for the DAG
+            inputs: Dictionary of input values
             
         Returns:
-            Results from the DAG execution
+            Dictionary mapping node names to their outputs
         """
-        # Initialize with the input data
-        node_outputs: Dict[str, Any] = {"input": {"data": input_data}}
-        executed_nodes: Set[str] = set()
+        # Get the execution order
+        execution_order = self.dag.getTopologicalOrder()
         
-        # Get nodes in topological order
-        topo_order = self.dag.get_topological_order()
+        # Prioritize nodes
+        if self.priority_nodes:
+            # Move priority nodes to the beginning of the list if they are in the execution order
+            for node_name in reversed(self.priority_nodes):
+                if node_name in execution_order:
+                    execution_order.remove(node_name)
+                    execution_order.insert(0, node_name)
         
-        # Track execution times
-        execution_times: Dict[str, float] = {}
-        import time
-        start_time = time.time()
+        # Store node outputs
+        node_outputs: Dict[str, Any] = {}
         
-        for node_id in topo_order:
-            node = self.dag.nodes[node_id]
+        # Nodes ready for execution
+        ready_nodes: List[str] = []
+        
+        # Nodes waiting for dependencies
+        waiting_nodes: Dict[str, List[str]] = {}
+        
+        # Initialize ready and waiting nodes
+        for node_name in execution_order:
+            node = self.dag.getNode(node_name)
+            if not node:
+                continue
+                
+            if not node.dependencies:
+                # No dependencies, can execute immediately
+                ready_nodes.append(node_name)
+            else:
+                # Has dependencies, must wait
+                waiting_nodes[node_name] = list(node.dependencies)
+        
+        # Process nodes until all are executed
+        while ready_nodes or waiting_nodes:
+            # Execute nodes in parallel
+            current_batch = ready_nodes[:self.max_parallel_nodes]
+            ready_nodes = ready_nodes[self.max_parallel_nodes:]
             
-            # Get inputs for this node
-            inputs = self.dag.get_node_inputs(node_id, node_outputs)
+            if not current_batch:
+                # No nodes ready, check if we're deadlocked
+                if waiting_nodes:
+                    # Get all executed nodes
+                    executed = set(node_outputs.keys())
+                    # Check if any waiting node can be unblocked
+                    for node_name, deps in list(waiting_nodes.items()):
+                        # Remove dependencies that have been executed
+                        waiting_nodes[node_name] = [d for d in deps if d not in executed]
+                        # If all dependencies are executed, move to ready
+                        if not waiting_nodes[node_name]:
+                            ready_nodes.append(node_name)
+                            del waiting_nodes[node_name]
+                            
+                    # If no nodes were unblocked, we're deadlocked
+                    if not ready_nodes:
+                        raise ValueError(f"Deadlock detected in DAG execution. Waiting nodes: {waiting_nodes}")
+                else:
+                    # No waiting nodes either, we're done
+                    break
+                    
+                # Continue to next iteration
+                continue
             
-            # Execute the node
-            node_start_time = time.time()
-            try:
-                result = await node.execute(inputs)
-                # Store the result
-                node_outputs[node_id] = result
-            except Exception as e:
-                node_outputs[node_id] = {"error": str(e)}
-            node_end_time = time.time()
+            # Create tasks for all nodes in the current batch
+            tasks = []
+            for node_name in current_batch:
+                node = self.dag.getNode(node_name)
+                if not node:
+                    continue
+                    
+                # Create a task for executing the node
+                # Find dependencies from node_outputs
+                dependency_outputs = {dep: node_outputs[dep] for dep in node.dependencies if dep in node_outputs}
+                
+                # Create task with combined inputs and dependency outputs
+                tasks.append(self._execute_node(node, inputs, dependency_outputs))
             
-            # Record execution time and mark as executed
-            execution_times[node_id] = node_end_time - node_start_time  # seconds
-            executed_nodes.add(node_id)
+            # Execute all tasks in parallel
+            results = await asyncio.gather(*tasks)
+            
+            # Store results
+            for node_name, result in zip(current_batch, results):
+                node_outputs[node_name] = result
+                
+            # Update waiting nodes
+            for node_name, deps in list(waiting_nodes.items()):
+                # Remove dependencies that have been executed
+                waiting_nodes[node_name] = [d for d in deps if d not in node_outputs]
+                # If all dependencies are executed, move to ready
+                if not waiting_nodes[node_name]:
+                    ready_nodes.append(node_name)
+                    del waiting_nodes[node_name]
         
-        end_time = time.time()
-        total_time = end_time - start_time  # seconds
-        
-        # Build and return a comprehensive result
+        # Format the results as expected by the tests
         return {
-            "results": node_outputs,
-            "execution_times": execution_times,
-            "total_time": total_time,
-            "executed_nodes": list(executed_nodes)
+            "results": node_outputs
         }
-
-
-class AdaptiveExecutor:
-    """
-    Advanced executor that utilizes parallelism and adapts execution based on conditions.
-    """
     
-    def __init__(self, dag: DAG, max_workers: int = 10):
+    async def _execute_node(self, node: Any, inputs: Dict[str, Any], dependency_outputs: Dict[str, Any]) -> Any:
         """
-        Initialize an adaptive executor.
+        Execute a node with the given inputs and dependency outputs.
         
         Args:
-            dag: The DAG to execute
-            max_workers: Maximum number of parallel workers (default: 10)
-        """
-        self.dag = dag
-        self.max_workers = max_workers
-    
-    async def execute(self, input_data: Any) -> Dict[str, Any]:
-        """
-        Execute the DAG with parallel execution where possible.
-        
-        Args:
-            input_data: Input data for the DAG
+            node: The node to execute
+            inputs: Dictionary of input values
+            dependency_outputs: Dictionary of outputs from dependency nodes
             
         Returns:
-            Results from the DAG execution
+            The result of the node execution
         """
-        # Initialize with the input data
-        node_outputs: Dict[str, Any] = {"input": {"data": input_data}}
-        executed_nodes: Set[str] = set()
+        # Combine inputs with mapped fields from dependencies
+        node_inputs = inputs.copy()
         
-        # Get dependency count for each node
-        dependencies: Dict[str, int] = {}
-        for node_id in self.dag.nodes:
-            dependencies[node_id] = 0
+        # Apply mappings from edge metadata to input fields
+        for dep_name, dep_output in dependency_outputs.items():
+            # Check if we have a mapping for this dependency
+            if dep_name in self.dag.edge_mappings and node.name in self.dag.edge_mappings[dep_name]:
+                mapping = self.dag.edge_mappings[dep_name][node.name]
+                
+                # Apply the mapping to the node inputs
+                for source_field, target_field in mapping.items():
+                    if source_field in dep_output:
+                        node_inputs[target_field] = dep_output[source_field]
+            else:
+                # No mapping, include all fields
+                node_inputs.update(dep_output)
         
-        for from_id, to_list in self.dag.edges.items():
-            for to_id in to_list:
-                dependencies[to_id] = dependencies.get(to_id, 0) + 1
-        
-        # Nodes with no dependencies can be executed right away
-        ready_nodes = [node_id for node_id, dep_count in dependencies.items() if dep_count == 0]
-        
-        # Track execution times
-        execution_times: Dict[str, float] = {}
-        import time
-        start_time = time.time()
-        
-        # Continue until all nodes are processed
-        while ready_nodes:
-            # Process nodes in parallel, limited by max_workers
-            batch_size = min(len(ready_nodes), self.max_workers)
-            batch = ready_nodes[:batch_size]
-            ready_nodes = ready_nodes[batch_size:]
+        # Set timeout based on max_execution_time
+        try:
+            # Convert milliseconds to seconds for asyncio
+            timeout = self.max_execution_time / 1000.0
             
-            async def process_node(node_id: str) -> None:
-                node = self.dag.nodes[node_id]
-                
-                # Get inputs for this node
-                inputs = self.dag.get_node_inputs(node_id, node_outputs)
-                
-                # Execute the node
-                node_start_time = time.time()
-                try:
-                    result = await node.execute(inputs)
-                    # Store the result
-                    node_outputs[node_id] = result
-                except Exception as e:
-                    node_outputs[node_id] = {"error": str(e)}
-                node_end_time = time.time()
-                
-                # Record execution time and mark as executed
-                execution_times[node_id] = node_end_time - node_start_time  # seconds
-                executed_nodes.add(node_id)
-                
-                # Update dependencies and find newly ready nodes
-                for to_id in self.dag.edges.get(node_id, []):
-                    dependencies[to_id] -= 1
-                    if dependencies[to_id] == 0:
-                        ready_nodes.append(to_id)
+            # Execute with timeout
+            result = await asyncio.wait_for(node.execute(node_inputs), timeout=timeout)
+            return result
             
-            # Create tasks for batch processing
-            tasks = [process_node(node_id) for node_id in batch]
-            
-            # Wait for all tasks in this batch to complete
-            await asyncio.gather(*tasks)
-        
-        end_time = time.time()
-        total_time = end_time - start_time  # seconds
-        
-        # Build and return a comprehensive result
-        return {
-            "results": node_outputs,
-            "execution_times": execution_times,
-            "total_time": total_time,
-            "executed_nodes": list(executed_nodes)
-        }
+        except asyncio.TimeoutError:
+            # Handle timeout
+            raise TimeoutError(f"Node {node.name} execution timed out after {self.max_execution_time}ms")
+        except Exception as e:
+            # Handle other exceptions
+            raise RuntimeError(f"Error executing node {node.name}: {str(e)}")
