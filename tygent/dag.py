@@ -1,7 +1,7 @@
 """
 Directed Acyclic Graph (DAG) implementation for Tygent.
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from tygent.nodes import Node
 
 
@@ -154,7 +154,7 @@ class DAG:
             
         return result
         
-    def getRootsAndLeaves(self) -> tuple[List[str], List[str]]:
+    def getRootsAndLeaves(self) -> Tuple[List[str], List[str]]:
         """
         Get the root and leaf nodes of the DAG.
         
