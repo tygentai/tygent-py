@@ -1,6 +1,6 @@
 # Tygent Python - Speed & Efficiency Layer for AI Agents
 
-[![CI](https://github.com/tygent0/tygent-py/workflows/CI/badge.svg)](https://github.com/tygent-ai/tygent-py/actions)
+[![CI](https://github.com/tygent-ai/tygent-py/workflows/CI/badge.svg)](https://github.com/tygent-ai/tygent-py/actions)
 [![PyPI version](https://badge.fury.io/py/tygent.svg)](https://badge.fury.io/py/tygent)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
