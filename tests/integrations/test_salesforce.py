@@ -308,7 +308,7 @@ class TestSalesforceIntegration(unittest.TestCase):
 
     def test_create_query_node(self):
         """Test creating a query node."""
-        node = self.integration.createQueryNode(
+        node = self.integration.create_query_node(
             name="accounts_query",
             sobject="Account",
             soql="SELECT Id, Name FROM Account",
@@ -322,7 +322,7 @@ class TestSalesforceIntegration(unittest.TestCase):
 
     def test_create_crud_node(self):
         """Test creating a CRUD operation node."""
-        node = self.integration.createCrudNode(
+        node = self.integration.create_crud_node(
             name="update_account",
             operation="update",
             sobject="Account",
@@ -336,7 +336,7 @@ class TestSalesforceIntegration(unittest.TestCase):
 
     def test_create_einstein_node(self):
         """Test creating an Einstein API node."""
-        node = self.integration.createEinsteinNode(
+        node = self.integration.create_einstein_node(
             name="sentiment_analysis",
             endpoint="account-analysis",
             dependencies=["accounts_query"],
