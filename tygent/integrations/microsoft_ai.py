@@ -33,10 +33,23 @@ class MicrosoftAINode(LLMNode):
             prompt_template: Template string for the prompt
             dependencies: List of node names this node depends on
         """
-        super().__init__(name, dependencies=dependencies)
+        # LLMNode expects the underlying model to be passed as the ``model``
+        # argument.  The previous implementation attempted to forward the
+        # ``dependencies`` keyword directly to ``LLMNode`` which resulted in a
+        # ``TypeError`` because ``LLMNode.__init__`` does not accept that
+        # parameter.  Instead, pass the client as the model and apply
+        # dependencies separately.
+        super().__init__(name=name, model=client, prompt_template=prompt_template)
+
+        # Store configuration specific to this integration
         self.client = client
         self.deployment_id = deployment_id
         self.prompt_template = prompt_template
+
+        # Preserve any provided dependency information
+        if dependencies:
+            self.dependencies = dependencies
+
         self.kwargs = kwargs
 
     async def execute(

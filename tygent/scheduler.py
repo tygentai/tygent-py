@@ -24,18 +24,64 @@ class Scheduler:
         self.max_execution_time = 60000  # milliseconds
         self.priority_nodes = []
 
-    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def configure(
+        self,
+        max_parallel_nodes: Optional[int] = None,
+        max_execution_time: Optional[int] = None,
+        priority_nodes: Optional[List[str]] = None,
+    ) -> None:
+        """Configure scheduler parameters.
+
+        This helper existed in the test expectations. Older versions of the
+        library lacked it, causing an ``AttributeError`` when integrations tried
+        to call ``scheduler.configure``.  The method simply updates the internal
+        attributes if values are provided.
         """
-        Execute the DAG with the given inputs.
+
+        if max_parallel_nodes is not None:
+            self.max_parallel_nodes = max_parallel_nodes
+        if max_execution_time is not None:
+            self.max_execution_time = max_execution_time
+        if priority_nodes is not None:
+            self.priority_nodes = priority_nodes
+
+    async def execute(
+        self,
+        dag_or_inputs: Any,
+        maybe_inputs: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Execute a DAG with the given inputs.
+
+        The scheduler historically accepted only a single ``inputs`` dictionary
+        and operated on the DAG passed during initialization.  Integrations in
+        this repository, however, call ``execute`` with the DAG as the first
+        argument followed by the inputs (and optionally a context dictionary).
+        To remain backward compatible this method now accepts both calling
+        conventions.
 
         Args:
-            inputs: Dictionary of input values
+            dag_or_inputs: Either a :class:`~tygent.dag.DAG` instance or the
+                inputs dictionary when using the legacy signature.
+            maybe_inputs: Inputs dictionary when ``dag_or_inputs`` is a DAG, or
+                an optional context when using the legacy signature.
+            context: Optional context passed when using the newer calling
+                convention.
 
         Returns:
             Dictionary mapping node names to their outputs
         """
+        if isinstance(dag_or_inputs, DAG):
+            dag = dag_or_inputs
+            inputs = maybe_inputs or {}
+        else:
+            dag = self.dag
+            inputs = dag_or_inputs or {}
+            context = maybe_inputs if context is None else context
+
         # Get the execution order
-        execution_order = self.dag.getTopologicalOrder()
+        execution_order = dag.getTopologicalOrder()
 
         # Prioritize nodes
         if self.priority_nodes:
@@ -56,7 +102,7 @@ class Scheduler:
 
         # Initialize ready and waiting nodes
         for node_name in execution_order:
-            node = self.dag.getNode(node_name)
+            node = dag.getNode(node_name)
             if not node:
                 continue
 
@@ -104,7 +150,7 @@ class Scheduler:
             # Create tasks for all nodes in the current batch
             tasks = []
             for node_name in current_batch:
-                node = self.dag.getNode(node_name)
+                node = dag.getNode(node_name)
                 if not node:
                     continue
 
@@ -117,7 +163,7 @@ class Scheduler:
                 }
 
                 # Create task with combined inputs and dependency outputs
-                tasks.append(self._execute_node(node, inputs, dependency_outputs))
+                tasks.append(self._execute_node(dag, node, inputs, dependency_outputs))
 
             # Execute all tasks in parallel
             results = await asyncio.gather(*tasks)
@@ -139,7 +185,11 @@ class Scheduler:
         return {"results": node_outputs}
 
     async def _execute_node(
-        self, node: Any, inputs: Dict[str, Any], dependency_outputs: Dict[str, Any]
+        self,
+        dag: DAG,
+        node: Any,
+        inputs: Dict[str, Any],
+        dependency_outputs: Dict[str, Any],
     ) -> Any:
         """
         Execute a node with the given inputs and dependency outputs.
@@ -159,10 +209,10 @@ class Scheduler:
         for dep_name, dep_output in dependency_outputs.items():
             # Check if we have a mapping for this dependency
             if (
-                dep_name in self.dag.edge_mappings
-                and node.name in self.dag.edge_mappings[dep_name]
+                dep_name in dag.edge_mappings
+                and node.name in dag.edge_mappings[dep_name]
             ):
-                mapping = self.dag.edge_mappings[dep_name][node.name]
+                mapping = dag.edge_mappings[dep_name][node.name]
 
                 # Apply the mapping to the node inputs
                 for source_field, target_field in mapping.items():
