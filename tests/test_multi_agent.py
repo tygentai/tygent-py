@@ -143,10 +143,12 @@ class TestMultiAgentManager(unittest.TestCase):
 
     def test_add_agent(self):
         """Test adding agents to the manager."""
-        # Test the basic functionality without external dependencies
+        # Start with no agents registered
         self.assertEqual(len(self.manager.agents), 0)
 
-        # Verify manager can track agents
+        # Add a dummy agent and verify it is tracked
+        self.manager.add_agent("dummy", object())
+        self.assertIn("dummy", self.manager.agents)
         self.assertIsInstance(self.manager.agents, dict)
 
     def test_manager_basic_functionality(self):
