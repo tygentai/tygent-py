@@ -52,7 +52,9 @@ class AdaptiveExecutor:
         self.base_dag = base_dag
         self.rewrite_rules = rewrite_rules or []
         self.max_modifications = max_modifications
-        self.scheduler = Scheduler()
+        # Initialize the scheduler with the base DAG so it is ready to execute
+        # immediately when no modifications are required.
+        self.scheduler = Scheduler(self.base_dag)
 
     async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
