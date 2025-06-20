@@ -39,8 +39,8 @@ class CommunicationBus:
             content: The message content
         """
         message = {
-            "sender": sender,
-            "recipient": recipient,
+            "from_agent": sender,
+            "to_agent": recipient,
             "content": content,
             "timestamp": asyncio.get_event_loop().time(),
         }
@@ -60,12 +60,12 @@ class CommunicationBus:
             List of messages for the agent
         """
         if since is None:
-            return [m for m in self.messages if m["recipient"] == recipient]
+            return [m for m in self.messages if m["to_agent"] == recipient]
         else:
             return [
                 m
                 for m in self.messages
-                if m["recipient"] == recipient and m["timestamp"] > since
+                if m["to_agent"] == recipient and m["timestamp"] > since
             ]
 
 
