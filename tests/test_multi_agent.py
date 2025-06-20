@@ -78,8 +78,8 @@ class TestCommunicationBus(unittest.TestCase):
 
             self.assertEqual(len(self.bus.messages), 1)
             message = self.bus.messages[0]
-            self.assertEqual(message["sender"], "agent1")
-            self.assertEqual(message["recipient"], "agent2")
+            self.assertEqual(message["from_agent"], "agent1")
+            self.assertEqual(message["to_agent"], "agent2")
             self.assertEqual(message["content"], "Hello!")
             self.assertTrue("timestamp" in message)
 
