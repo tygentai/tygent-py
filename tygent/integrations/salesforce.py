@@ -260,6 +260,10 @@ class SalesforceIntegration:
         self.dag.add_node(node)
         return node
 
+    # Backwards compatible camelCase helper
+    def createQueryNode(self, *args, **kwargs) -> SalesforceNode:
+        return self.create_query_node(*args, **kwargs)
+
     def create_crud_node(
         self,
         name: str,
@@ -336,7 +340,6 @@ class SalesforceIntegration:
             Self for chaining
         """
         constraints = constraints or {}
-
         # Configure the scheduler
         max_parallel = constraints.get(
             "max_concurrent_calls", constraints.get("maxConcurrentCalls", 4)
@@ -399,7 +402,6 @@ class TygentBatchProcessor:
             batch_size = kwargs.pop("batchSize")
         if "concurrentBatches" in kwargs:
             concurrent_batches = kwargs.pop("concurrentBatches")
-
         self.connection = connection
         self.batch_size = batch_size
         self.concurrent_batches = concurrent_batches
@@ -523,3 +525,7 @@ class TygentBatchProcessor:
                     raise ValueError(f"Batch operation failed: {batch_result['error']}")
 
         return {"results": results, "errors": errors}
+
+    # Backwards compatible camelCase helper
+    async def bulkOperation(self, *args, **kwargs):
+        return await self.bulk_operation(*args, **kwargs)
