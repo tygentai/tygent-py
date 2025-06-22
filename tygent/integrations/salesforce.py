@@ -37,6 +37,7 @@ class SalesforceNode(BaseNode):
         self.connection = connection
         self.operation_type = operation_type
         self.sobject = sobject
+        self.dependencies = dependencies or []
         self.kwargs = kwargs
 
     async def execute(
@@ -337,9 +338,15 @@ class SalesforceIntegration:
         constraints = constraints or {}
 
         # Configure the scheduler
-        max_parallel = constraints.get("max_concurrent_calls", 4)
-        max_time = constraints.get("max_execution_time", 60000)
-        priority_nodes = constraints.get("priority_nodes", [])
+        max_parallel = constraints.get(
+            "max_concurrent_calls", constraints.get("maxConcurrentCalls", 4)
+        )
+        max_time = constraints.get(
+            "max_execution_time", constraints.get("maxExecutionTime", 60000)
+        )
+        priority_nodes = constraints.get(
+            "priority_nodes", constraints.get("priorityNodes", [])
+        )
 
         # Apply configuration to scheduler
         self.scheduler.max_parallel_nodes = max_parallel
@@ -377,6 +384,7 @@ class TygentBatchProcessor:
         batch_size: int = 200,
         concurrent_batches: int = 3,
         error_handling: str = "continue",
+        **kwargs,
     ):
         """
         Initialize the batch processor.
@@ -387,6 +395,11 @@ class TygentBatchProcessor:
             concurrent_batches: Maximum number of concurrent batch executions
             error_handling: How to handle errors ("continue" or "abort")
         """
+        if "batchSize" in kwargs:
+            batch_size = kwargs.pop("batchSize")
+        if "concurrentBatches" in kwargs:
+            concurrent_batches = kwargs.pop("concurrentBatches")
+
         self.connection = connection
         self.batch_size = batch_size
         self.concurrent_batches = concurrent_batches

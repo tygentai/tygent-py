@@ -45,6 +45,21 @@ try:
 except ImportError:
     pass
 
+try:
+    from .anthropic import AnthropicIntegration
+except ImportError:
+    pass
+
+try:
+    from .huggingface import HuggingFaceIntegration
+except ImportError:
+    pass
+
+try:
+    from .langsmith import LangSmithTracker
+except ImportError:
+    pass
+
 __all__ = [
     "LangChainIntegration",
     "OpenAIIntegration",
@@ -54,4 +69,7 @@ __all__ = [
     "AutoGenIntegration",
     "LangGraphIntegration",
     "CrewAIIntegration",
+    "AnthropicIntegration",
+    "HuggingFaceIntegration",
+    "LangSmithTracker",
 ]
