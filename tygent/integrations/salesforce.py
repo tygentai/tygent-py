@@ -340,19 +340,15 @@ class SalesforceIntegration:
             Self for chaining
         """
         constraints = constraints or {}
-
-        # Support both snake_case and camelCase options
+        # Configure the scheduler
         max_parallel = constraints.get(
-            "max_concurrent_calls",
-            constraints.get("maxConcurrentCalls", 4),
+            "max_concurrent_calls", constraints.get("maxConcurrentCalls", 4)
         )
         max_time = constraints.get(
-            "max_execution_time",
-            constraints.get("maxExecutionTime", 60000),
+            "max_execution_time", constraints.get("maxExecutionTime", 60000)
         )
         priority_nodes = constraints.get(
-            "priority_nodes",
-            constraints.get("priorityNodes", []),
+            "priority_nodes", constraints.get("priorityNodes", [])
         )
 
         # Apply configuration to scheduler
@@ -402,9 +398,10 @@ class TygentBatchProcessor:
             concurrent_batches: Maximum number of concurrent batch executions
             error_handling: How to handle errors ("continue" or "abort")
         """
-        batch_size = kwargs.get("batchSize", batch_size)
-        concurrent_batches = kwargs.get("concurrentBatches", concurrent_batches)
-
+        if "batchSize" in kwargs:
+            batch_size = kwargs.pop("batchSize")
+        if "concurrentBatches" in kwargs:
+            concurrent_batches = kwargs.pop("concurrentBatches")
         self.connection = connection
         self.batch_size = batch_size
         self.concurrent_batches = concurrent_batches
