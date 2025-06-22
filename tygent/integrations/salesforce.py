@@ -37,6 +37,7 @@ class SalesforceNode(BaseNode):
         self.connection = connection
         self.operation_type = operation_type
         self.sobject = sobject
+        self.dependencies = dependencies or []
         self.kwargs = kwargs
 
     async def execute(
@@ -259,6 +260,10 @@ class SalesforceIntegration:
         self.dag.add_node(node)
         return node
 
+    # Backwards compatible camelCase helper
+    def createQueryNode(self, *args, **kwargs) -> SalesforceNode:
+        return self.create_query_node(*args, **kwargs)
+
     def create_crud_node(
         self,
         name: str,
@@ -336,10 +341,19 @@ class SalesforceIntegration:
         """
         constraints = constraints or {}
 
-        # Configure the scheduler
-        max_parallel = constraints.get("max_concurrent_calls", 4)
-        max_time = constraints.get("max_execution_time", 60000)
-        priority_nodes = constraints.get("priority_nodes", [])
+        # Support both snake_case and camelCase options
+        max_parallel = constraints.get(
+            "max_concurrent_calls",
+            constraints.get("maxConcurrentCalls", 4),
+        )
+        max_time = constraints.get(
+            "max_execution_time",
+            constraints.get("maxExecutionTime", 60000),
+        )
+        priority_nodes = constraints.get(
+            "priority_nodes",
+            constraints.get("priorityNodes", []),
+        )
 
         # Apply configuration to scheduler
         self.scheduler.max_parallel_nodes = max_parallel
@@ -377,6 +391,7 @@ class TygentBatchProcessor:
         batch_size: int = 200,
         concurrent_batches: int = 3,
         error_handling: str = "continue",
+        **kwargs,
     ):
         """
         Initialize the batch processor.
@@ -387,6 +402,9 @@ class TygentBatchProcessor:
             concurrent_batches: Maximum number of concurrent batch executions
             error_handling: How to handle errors ("continue" or "abort")
         """
+        batch_size = kwargs.get("batchSize", batch_size)
+        concurrent_batches = kwargs.get("concurrentBatches", concurrent_batches)
+
         self.connection = connection
         self.batch_size = batch_size
         self.concurrent_batches = concurrent_batches
@@ -510,3 +528,7 @@ class TygentBatchProcessor:
                     raise ValueError(f"Batch operation failed: {batch_result['error']}")
 
         return {"results": results, "errors": errors}
+
+    # Backwards compatible camelCase helper
+    async def bulkOperation(self, *args, **kwargs):
+        return await self.bulk_operation(*args, **kwargs)
