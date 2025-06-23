@@ -6,7 +6,7 @@ for optimized execution through critical path analysis. It also supports multi-a
 orchestration with optimized communication patterns.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .accelerate import accelerate
 from .adaptive_executor import (
