@@ -11,7 +11,9 @@ from .plan_parser import parse_plan
 from .scheduler import Scheduler
 
 
-def accelerate(func_or_agent: Union[Callable, Any]) -> Union[Callable, Any]:
+def accelerate(
+    func_or_agent: Optional[Union[Callable, Any]] = None,
+) -> Union[Callable, Any]:
     """
     Accelerate any function or agent framework for automatic parallel optimization.
 
@@ -19,11 +21,19 @@ def accelerate(func_or_agent: Union[Callable, Any]) -> Union[Callable, Any]:
     optimizes execution through parallel processing and DAG-based scheduling.
 
     Args:
-        func_or_agent: Function, agent, or framework object to accelerate
+        func_or_agent: Function, agent, or framework object to accelerate. If ``None``,
+            ``accelerate`` returns a decorator that can be applied using ``@accelerate()``.
 
     Returns:
         Accelerated version with same interface but optimized execution
     """
+
+    if func_or_agent is None:
+
+        def decorator(inner: Union[Callable, Any]) -> Union[Callable, Any]:
+            return accelerate(inner)
+
+        return decorator
 
     # Directly parse plan dictionaries
     if isinstance(func_or_agent, dict) and "steps" in func_or_agent:
