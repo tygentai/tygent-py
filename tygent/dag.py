@@ -2,6 +2,7 @@
 Directed Acyclic Graph (DAG) implementation for Tygent.
 """
 
+import copy
 from typing import Any, Dict, List, Optional, Tuple
 
 from tygent.nodes import Node
@@ -174,15 +175,52 @@ class DAG:
         return roots, leaves
 
     def copy(self) -> "DAG":
-        """Create a shallow copy of the DAG."""
+        """Create a deep copy of the DAG."""
 
         new_dag = DAG(self.name)
-        # Copy nodes directly; nodes themselves remain the same instances
-        new_dag.nodes = dict(self.nodes)
-        # Copy edges and metadata
-        new_dag.edges = {k: list(v) for k, v in self.edges.items()}
+
+        # Deep copy nodes to avoid shared dependency lists
+        new_dag.nodes = {name: copy.deepcopy(node) for name, node in self.nodes.items()}
+
+        # Deep copy edges and edge metadata
+        new_dag.edges = {src: list(targets) for src, targets in self.edges.items()}
         new_dag.edge_mappings = {
             src: {dst: dict(meta) for dst, meta in targets.items()}
             for src, targets in self.edge_mappings.items()
         }
+
         return new_dag
+
+    def compute_critical_path(self) -> Dict[str, float]:
+        """Compute cumulative latency for each node along the critical path.
+
+        Returns
+        -------
+        Dict[str, float]
+            Mapping of node names to total latency from that node to the end of
+            the longest path in the DAG.
+        """
+
+        # Start with each node's own latency estimate
+        cp_length = {
+            name: node.get_latency_estimate() for name, node in self.nodes.items()
+        }
+
+        # Process nodes from leaves upward using reversed topological order
+        for node in reversed(self.get_topological_order()):
+            children = self.edges.get(node, [])
+            if not children:
+                continue
+
+            max_child = max(cp_length[child] for child in children)
+            cp_length[node] = self.nodes[node].get_latency_estimate() + max_child
+
+        return cp_length
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Convenience method to execute this DAG using :class:`Scheduler`."""
+
+        from .scheduler import Scheduler
+
+        scheduler = Scheduler(self)
+        return await scheduler.execute(inputs)

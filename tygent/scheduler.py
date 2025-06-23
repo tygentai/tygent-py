@@ -3,7 +3,9 @@ Scheduler for executing DAGs in Tygent.
 """
 
 import asyncio
-from typing import Dict, List, Any, Optional
+import time
+from typing import Any, Dict, List, Optional
+
 from tygent.dag import DAG
 
 
@@ -23,12 +25,18 @@ class Scheduler:
         self.max_parallel_nodes = 4
         self.max_execution_time = 60000  # milliseconds
         self.priority_nodes = []
+        self.token_budget: Optional[int] = None
+        self.tokens_used = 0
+        self.requests_per_minute: Optional[int] = None
+        self._request_times: List[float] = []
 
     def configure(
         self,
         max_parallel_nodes: Optional[int] = None,
         max_execution_time: Optional[int] = None,
         priority_nodes: Optional[List[str]] = None,
+        token_budget: Optional[int] = None,
+        requests_per_minute: Optional[int] = None,
     ) -> None:
         """Configure scheduler parameters.
 
@@ -36,6 +44,19 @@ class Scheduler:
         library lacked it, causing an ``AttributeError`` when integrations tried
         to call ``scheduler.configure``.  The method simply updates the internal
         attributes if values are provided.
+
+        Parameters
+        ----------
+        max_parallel_nodes : int, optional
+            Maximum number of nodes that may run concurrently.
+        max_execution_time : int, optional
+            Timeout for each node in milliseconds.
+        priority_nodes : list of str, optional
+            Names of nodes that should run before others.
+        token_budget : int, optional
+            Maximum allowed token usage for this execution.
+        requests_per_minute : int, optional
+            Limit on how many nodes may start per 60s window.
         """
 
         if max_parallel_nodes is not None:
@@ -44,6 +65,10 @@ class Scheduler:
             self.max_execution_time = max_execution_time
         if priority_nodes is not None:
             self.priority_nodes = priority_nodes
+        if token_budget is not None:
+            self.token_budget = token_budget
+        if requests_per_minute is not None:
+            self.requests_per_minute = requests_per_minute
 
     async def execute(
         self,
@@ -80,8 +105,18 @@ class Scheduler:
             inputs = dag_or_inputs or {}
             context = maybe_inputs if context is None else context
 
+        # Reset per-run counters
+        self.tokens_used = 0
+        self._request_times = []
+
         # Get the execution order
         execution_order = dag.getTopologicalOrder()
+
+        # Pre-compute critical path lengths for latency-aware scheduling
+        try:
+            critical_path = dag.compute_critical_path()
+        except Exception:
+            critical_path = {name: 0.0 for name in execution_order}
 
         # Prioritize nodes
         if self.priority_nodes:
@@ -115,6 +150,9 @@ class Scheduler:
 
         # Process nodes until all are executed
         while ready_nodes or waiting_nodes:
+            # Prioritize nodes by critical-path latency
+            ready_nodes.sort(key=lambda n: critical_path.get(n, 0), reverse=True)
+
             # Execute nodes in parallel
             current_batch = ready_nodes[: self.max_parallel_nodes]
             ready_nodes = ready_nodes[self.max_parallel_nodes :]
@@ -204,6 +242,25 @@ class Scheduler:
         """
         # Combine inputs with mapped fields from dependencies
         node_inputs = inputs.copy()
+
+        # Enforce token budget if configured
+        if self.token_budget is not None:
+            cost = getattr(node, "token_cost", 0)
+            if self.tokens_used + cost > self.token_budget:
+                raise RuntimeError(f"Token budget exceeded when executing {node.name}")
+            self.tokens_used += cost
+
+        # Rate limiting based on start times
+        if self.requests_per_minute is not None:
+            now = time.monotonic()
+            self._request_times = [t for t in self._request_times if now - t < 60]
+            if len(self._request_times) >= self.requests_per_minute:
+                wait_for = 60 - (now - self._request_times[0])
+                if wait_for > 0:
+                    await asyncio.sleep(wait_for)
+                now = time.monotonic()
+                self._request_times = [t for t in self._request_times if now - t < 60]
+            self._request_times.append(now)
 
         # Apply mappings from edge metadata to input fields
         for dep_name, dep_output in dependency_outputs.items():
