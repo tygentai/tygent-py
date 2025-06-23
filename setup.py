@@ -2,14 +2,14 @@
 Setup script for Tygent package.
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="tygent",
-    version="0.1.0",
+    version="0.2.0",
     author="Tygent Team",
     author_email="info@tygent.ai",
     description="Transform LLM Agents into High-Performance Engines with DAG optimization",
