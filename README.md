@@ -5,7 +5,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-Transform your existing AI agents into high-performance engines with intelligent parallel execution and optimized scheduling. Tygent makes your agents run **up to 3x faster** and **up to 75% cheaper** with **no code changes required**.
+Transform your existing AI agents into high-performance engines with intelligent parallel execution and optimized scheduling. Tygent aims to speed up workflows and reduce costs with **no code changes required**.
 
 ## Quick Start
 
@@ -20,12 +20,13 @@ pip install tygent
 ```python
 from tygent import accelerate
 
+
 # Your existing code
 def research_topic(topic):
     # Your existing research logic
     return {"summary": f"Research on {topic}"}
 
-# Same code + Tygent wrapper = 3x faster
+# Wrap the function to run via Tygent's scheduler
 accelerated_research = accelerate(research_topic)
 result = accelerated_research("AI trends")
 ```
@@ -33,6 +34,8 @@ result = accelerated_research("AI trends")
 ### Multi-Agent System
 
 ```python
+import asyncio
+
 from tygent import MultiAgentManager
 
 # Create manager
@@ -51,19 +54,19 @@ manager.add_agent("analyzer", AnalyzerAgent())
 manager.add_agent("researcher", ResearchAgent())
 
 # Execute with optimized communication
-result = manager.execute({
-    "question": "How do I reset my password?"
-})
+result = asyncio.run(
+    manager.execute({"question": "How do I reset my password?"})
+)
 ```
 
 ## Key Features
 
-- **🚀 3x Speed Improvement**: Intelligent parallel execution of independent operations
-- **💰 75% Cost Reduction**: Optimized token usage and API call batching
+- **🚀 Speed Improvement**: Intelligent parallel execution of independent operations
+- **💰 Cost Reduction**: Optimized token usage and API call batching
 - **🔧 Zero Code Changes**: Drop-in acceleration for existing functions and agents
 - **🧠 Smart DAG Optimization**: Automatic dependency analysis and parallel scheduling
 - **🔄 Dynamic Adaptation**: Runtime DAG modification based on conditions and failures
-- **🎯 Multi-Framework Support**: Works with LangChain, AutoGPT, CrewAI, and custom agents
+- **🎯 Multi-Framework Support**: Works with CrewAI, HuggingFace, Google AI, and custom agents
 - **📄 Plan Parsing**: Build DAGs directly from framework plans or dictionaries
 
 ## Architecture
@@ -91,7 +94,8 @@ Your Sequential Code:        Tygent Optimized:
 
 ```python
 from tygent import accelerate
-from tygent.adaptive import AdaptiveExecutor
+from tygent.adaptive_executor import AdaptiveExecutor
+
 
 # Workflow that adapts to failures and conditions
 @accelerate
@@ -115,9 +119,10 @@ async def travel_planning_workflow(destination):
 
 ### Integration Examples
 
-#### LangChain Integration
+#### Example: Accelerating a LangChain Agent
 ```python
 from tygent import accelerate
+
 
 # Your existing LangChain agent
 class MockLangChainAgent:
@@ -133,7 +138,9 @@ result = accelerated_agent.run("Analyze market trends")
 
 #### Custom Multi-Agent System
 ```python
-from tygent import MultiAgentManager, DAG, ToolNode
+import asyncio
+
+from tygent import DAG, LLMNode, MultiAgentManager, ToolNode
 
 # Create a DAG for manual workflow control
 dag = DAG("content_generation")
@@ -141,14 +148,16 @@ dag = DAG("content_generation")
 def research_function(inputs):
     return {"research_data": f"Data about {inputs.get('topic', 'general')}"}
 
-def outline_function(inputs):
-    return {"outline": f"Outline based on {inputs.get('research_data', 'data')}"}
+class SimpleLLMNode(LLMNode):
+    async def execute(self, inputs):
+        # Normally this would call an LLM; here we just format text
+        return {"outline": f"Outline for {inputs.get('research_data', '')}"}
 
 dag.add_node(ToolNode("research", research_function))
-dag.add_node(ToolNode("outline", outline_function))
+dag.add_node(SimpleLLMNode("outline"))
 dag.add_edge("research", "outline")
 
-result = dag.execute({"topic": "AI trends"})
+result = asyncio.run(dag.execute({"topic": "AI trends"}))
 ```
 
 ### Parsing Plans
@@ -156,7 +165,7 @@ result = dag.execute({"topic": "AI trends"})
 Tygent can convert structured plans into executable DAGs with `parse_plan`.
 
 ```python
-from tygent import parse_plan, accelerate, Scheduler
+from tygent import Scheduler, accelerate, parse_plan
 
 plan = {
     "name": "math",
@@ -178,6 +187,8 @@ run_plan = accelerate(plan)
 ## Testing
 
 ### Running Tests
+
+Make sure to install the package in editable mode before executing the tests.
 
 ```bash
 # Install test dependencies
@@ -228,10 +239,10 @@ Triggers: Every push and pull request to main/develop branches
 ## Framework Integrations
 
 ### Supported Frameworks
-- **LangChain**: Direct agent acceleration
-- **AutoGPT**: Workflow optimization
 - **CrewAI**: Multi-agent coordination
 - **Microsoft Semantic Kernel**: Plugin optimization
+- **LangSmith**: Experiment tracking integration
+- **LangFlow**: Visual workflow authoring
 - **Custom Agents**: Universal function acceleration
 
 ### External Service Integrations
@@ -239,15 +250,26 @@ Triggers: Every push and pull request to main/develop branches
 - **Google AI**: Gemini model integration
 - **Microsoft Azure**: Azure OpenAI service
 - **Salesforce**: Einstein AI and CRM operations
+- **HuggingFace**: Transformer models
 
 ## Performance Benchmarks
 
-| Scenario | Original Time | Tygent Time | Speed Improvement | Cost Reduction |
-|----------|---------------|-------------|-------------------|----------------|
-| Multi-step Research | 45s | 15s | 3.0x faster | 75% less |
-| Customer Support | 30s | 12s | 2.5x faster | 68% less |
-| Content Generation | 60s | 22s | 2.7x faster | 71% less |
-| Data Analysis | 120s | 41s | 2.9x faster | 73% less |
+Benchmark tests live under `tests/benchmarks/` and compare sequential
+execution with Tygent's scheduler. Typical results on a small DAG of four
+dependent tasks:
+
+| Scenario                 | Time (s) |
+|--------------------------|---------:|
+| Sequential execution     | ~0.70    |
+| Scheduler (1 worker)     | ~0.72    |
+| Scheduler (2 workers)    | ~0.52    |
+
+Run the benchmarks using:
+
+```bash
+pip install -e .
+pytest tests/benchmarks/ -v
+```
 
 ## Development
 
