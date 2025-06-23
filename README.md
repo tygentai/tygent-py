@@ -64,6 +64,7 @@ result = manager.execute({
 - **🧠 Smart DAG Optimization**: Automatic dependency analysis and parallel scheduling
 - **🔄 Dynamic Adaptation**: Runtime DAG modification based on conditions and failures
 - **🎯 Multi-Framework Support**: Works with LangChain, AutoGPT, CrewAI, and custom agents
+- **📄 Plan Parsing**: Build DAGs directly from framework plans or dictionaries
 
 ## Architecture
 
@@ -148,6 +149,30 @@ dag.add_node(ToolNode("outline", outline_function))
 dag.add_edge("research", "outline")
 
 result = dag.execute({"topic": "AI trends"})
+```
+
+### Parsing Plans
+
+Tygent can convert structured plans into executable DAGs with `parse_plan`.
+
+```python
+from tygent import parse_plan, accelerate, Scheduler
+
+plan = {
+    "name": "math",
+    "steps": [
+        {"name": "add", "func": add_fn, "critical": True},
+        {"name": "mult", "func": mult_fn, "dependencies": ["add"]},
+    ],
+}
+
+# Build a DAG manually
+dag, critical = parse_plan(plan)
+scheduler = Scheduler(dag)
+scheduler.priority_nodes = critical
+
+# Or accelerate the plan directly (works with frameworks exposing `get_plan`)
+run_plan = accelerate(plan)
 ```
 
 ## Testing
