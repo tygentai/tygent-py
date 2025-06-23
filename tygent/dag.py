@@ -2,7 +2,8 @@
 Directed Acyclic Graph (DAG) implementation for Tygent.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from tygent.nodes import Node
 
 
@@ -171,3 +172,17 @@ class DAG:
         leaves = [name for name in self.nodes if not self.edges.get(name, [])]
 
         return roots, leaves
+
+    def copy(self) -> "DAG":
+        """Create a shallow copy of the DAG."""
+
+        new_dag = DAG(self.name)
+        # Copy nodes directly; nodes themselves remain the same instances
+        new_dag.nodes = dict(self.nodes)
+        # Copy edges and metadata
+        new_dag.edges = {k: list(v) for k, v in self.edges.items()}
+        new_dag.edge_mappings = {
+            src: {dst: dict(meta) for dst, meta in targets.items()}
+            for src, targets in self.edge_mappings.items()
+        }
+        return new_dag

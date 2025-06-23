@@ -1,13 +1,13 @@
-"""
-Accelerate function for drop-in optimization of existing agent frameworks.
-"""
+"""Accelerate function for drop-in optimization of existing agent frameworks."""
 
 import asyncio
-import inspect
 import functools
+import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
+
 from .dag import DAG
-from .nodes import ToolNode, LLMNode
+from .nodes import LLMNode, ToolNode
+from .plan_parser import parse_plan
 from .scheduler import Scheduler
 
 
@@ -25,28 +25,72 @@ def accelerate(func_or_agent: Union[Callable, Any]) -> Union[Callable, Any]:
         Accelerated version with same interface but optimized execution
     """
 
+    # Directly parse plan dictionaries
+    if isinstance(func_or_agent, dict) and "steps" in func_or_agent:
+        dag, critical = parse_plan(func_or_agent)
+        return _PlanExecutor(dag, critical)
+
     # Handle different framework types
     if hasattr(func_or_agent, "__class__"):
         class_name = func_or_agent.__class__.__name__
+
+        # Framework exposes a plan that can be parsed
+        for attr in ("plan", "get_plan", "workflow"):
+            if hasattr(func_or_agent, attr):
+                plan_obj = getattr(func_or_agent, attr)
+                plan = plan_obj() if callable(plan_obj) else plan_obj
+                if isinstance(plan, dict) and "steps" in plan:
+                    dag, critical = parse_plan(plan)
+                    return _FrameworkExecutor(func_or_agent, dag, critical)
 
         # LangChain Agent
         if "Agent" in class_name or hasattr(func_or_agent, "run"):
             return _accelerate_langchain_agent(func_or_agent)
 
         # OpenAI Assistant
-        elif hasattr(func_or_agent, "id") and hasattr(func_or_agent, "instructions"):
+        if hasattr(func_or_agent, "id") and hasattr(func_or_agent, "instructions"):
             return _accelerate_openai_assistant(func_or_agent)
 
         # LlamaIndex components
-        elif "Index" in class_name or hasattr(func_or_agent, "query"):
+        if "Index" in class_name or hasattr(func_or_agent, "query"):
             return _accelerate_llamaindex(func_or_agent)
 
     # Handle regular functions
-    elif callable(func_or_agent):
+    if callable(func_or_agent):
         return _accelerate_function(func_or_agent)
 
     # Return original if no optimization available
     return func_or_agent
+
+
+class _PlanExecutor:
+    """Execute a parsed plan using :class:`Scheduler`."""
+
+    def __init__(self, dag: DAG, critical: List[str]) -> None:
+        self.scheduler = Scheduler(dag)
+        self.scheduler.priority_nodes = critical
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.scheduler.execute(inputs)
+
+    __call__ = execute
+
+
+class _FrameworkExecutor:
+    """Wrapper that runs a framework object's plan via Tygent."""
+
+    def __init__(self, original: Any, dag: DAG, critical: List[str]) -> None:
+        self.original = original
+        self.scheduler = Scheduler(dag)
+        self.scheduler.priority_nodes = critical
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.scheduler.execute(inputs)
+
+    __call__ = execute
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.original, name)
 
 
 def _accelerate_function(func: Callable) -> Callable:
