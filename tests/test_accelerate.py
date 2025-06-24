@@ -45,6 +45,14 @@ class TestAccelerate(unittest.TestCase):
         value = asyncio.run(run())
         self.assertEqual(value, 8)
 
+    def test_accelerate_decorator(self):
+        @accelerate
+        async def add_one(x):
+            return x + 1
+
+        result = add_one(4)
+        self.assertEqual(result, 5)
+
 
 if __name__ == "__main__":
     unittest.main()
