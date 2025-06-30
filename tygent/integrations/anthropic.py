@@ -5,8 +5,8 @@ This module provides integration with Anthropic's Claude models for
 optimized DAG execution and batch processing.
 """
 
-from typing import Any, Dict, List, Optional, Callable
 import asyncio
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from anthropic import AsyncAnthropic
@@ -141,3 +141,30 @@ class AnthropicBatchProcessor:
             results.extend(r for r in batch_results if not isinstance(r, Exception))
         return results
 
+
+def patch() -> None:
+    """Patch anthropic.AsyncAnthropic to run through Tygent's scheduler."""
+    if AsyncAnthropic is None:
+        return
+
+    original_create = getattr(AsyncAnthropic, "messages", None)
+    if original_create is None:
+        return
+    original_create = getattr(AsyncAnthropic.messages, "create", None)
+    if original_create is None:
+        return
+
+    async def _node_fn(self, *args, **kwargs):
+        return await original_create(self, *args, **kwargs)
+
+    async def patched(self, *args, **kwargs):
+        dag = DAG("anthropic_generate")
+        node = LLMNode("call", model=self)
+        node.execute = lambda inputs: _node_fn(self, *args, **kwargs)
+        dag.add_node(node)
+        scheduler = Scheduler(dag)
+        result = await scheduler.execute({})
+        return result["results"]["call"]
+
+    setattr(AsyncAnthropic.messages, "_tygent_create", original_create)
+    setattr(AsyncAnthropic.messages, "create", patched)

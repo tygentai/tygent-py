@@ -5,8 +5,8 @@ This module allows Tygent DAGs to use models hosted on HuggingFace Hub,
 with optional asynchronous generation and streaming support.
 """
 
-from typing import Any, Dict, List, Optional, Callable
 import asyncio
+from typing import Any, Callable, Dict, List, Optional
 
 from ..dag import DAG
 from ..nodes import LLMNode
@@ -44,12 +44,16 @@ class HuggingFaceNode(LLMNode):
                 if asyncio.iscoroutinefunction(self.model.__call__):
                     return await self.model(prompt, **self.kwargs)
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(None, self.model, prompt, **self.kwargs)
+                return await loop.run_in_executor(
+                    None, self.model, prompt, **self.kwargs
+                )
             if hasattr(self.model, "generate"):
                 if asyncio.iscoroutinefunction(self.model.generate):
                     return await self.model.generate(prompt, **self.kwargs)
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(None, self.model.generate, prompt, **self.kwargs)
+                return await loop.run_in_executor(
+                    None, self.model.generate, prompt, **self.kwargs
+                )
             raise ValueError("Unsupported HuggingFace model")
         except Exception as e:  # pragma: no cover - runtime errors
             print(f"Error executing HuggingFace node {self.name}: {e}")
@@ -124,3 +128,37 @@ class HuggingFaceBatchProcessor:
             results.extend(r for r in batch_results if not isinstance(r, Exception))
         return results
 
+
+def patch() -> None:
+    """Patch transformers.Pipeline to run through Tygent's scheduler."""
+    try:
+        from transformers import Pipeline  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        return
+
+    original_call = getattr(Pipeline, "__call__", None)
+    if original_call is None:
+        return
+
+    def patched(self, *args, **kwargs):
+        async def _node_fn(_):
+            if asyncio.iscoroutinefunction(original_call):
+                return await original_call(self, *args, **kwargs)
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, original_call, self, *args, **kwargs
+            )
+
+        async def run():
+            dag = DAG("hf_pipeline")
+            node = LLMNode("call", model=self)
+            node.execute = _node_fn
+            dag.add_node(node)
+            scheduler = Scheduler(dag)
+            result = await scheduler.execute({})
+            return result["results"]["call"]
+
+        return asyncio.run(run())
+
+    setattr(Pipeline, "_tygent_call", original_call)
+    setattr(Pipeline, "__call__", patched)

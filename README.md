@@ -31,6 +31,22 @@ accelerated_research = accelerate(research_topic)
 result = accelerated_research("AI trends")
 ```
 
+### Zero-Lift Framework Patching
+
+```python
+import asyncio
+
+import tygent
+
+# Apply patches for any installed integrations
+tygent.install()
+
+from google.generativeai import GenerativeModel
+
+model = GenerativeModel("gemini-pro")
+result = asyncio.run(model.generate_content("Hello"))
+```
+
 ### Multi-Agent System
 
 ```python
