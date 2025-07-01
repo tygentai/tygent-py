@@ -4,8 +4,9 @@ Microsoft AI Integration for Tygent
 This module provides optimized integration with Microsoft's AI services, including Azure OpenAI and Semantic Kernel.
 """
 
-from typing import Dict, Any, List, Optional, Callable, Union
 import asyncio
+from typing import Any, Callable, Dict, List, Optional, Union
+
 from ..dag import DAG
 from ..nodes import BaseNode, LLMNode
 from ..scheduler import Scheduler
@@ -330,3 +331,35 @@ class SemanticKernelOptimizer:
         # Execute the DAG with the scheduler
         results = await self.scheduler.execute(self.dag, inputs)
         return results
+
+
+def patch() -> None:
+    """Patch openai clients to run through Tygent's scheduler."""
+    try:
+        from openai import AsyncOpenAI, OpenAI  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        return
+
+    def _wrap(cls) -> None:
+        client_attr = getattr(cls, "chat", None)
+        if client_attr is None or not hasattr(client_attr, "completions"):
+            return
+        original = client_attr.completions.create
+
+        async def _node_fn(self, *args, **kwargs):
+            return await original(self, *args, **kwargs)
+
+        async def patched(self, *args, **kwargs):
+            dag = DAG("openai_chat")
+            node = LLMNode("call", model=self)
+            node.execute = lambda inputs: _node_fn(self, *args, **kwargs)
+            dag.add_node(node)
+            scheduler = Scheduler(dag)
+            result = await scheduler.execute({})
+            return result["results"]["call"]
+
+        setattr(client_attr.completions, "_tygent_create", original)
+        client_attr.completions.create = patched
+
+    for cls in (OpenAI, AsyncOpenAI):
+        _wrap(cls)

@@ -5,10 +5,11 @@ This module provides integration with Google's Gemini models
 for optimized execution of multi-step workflows.
 """
 
-from typing import Any, Dict, List, Optional, Callable
 import asyncio
-from tygent.nodes import LLMNode
+from typing import Any, Callable, Dict, List, Optional
+
 from tygent.dag import DAG
+from tygent.nodes import LLMNode
 from tygent.scheduler import Scheduler
 
 
@@ -218,3 +219,55 @@ class GoogleAIBatchProcessor:
             results.extend(valid_results)
 
         return results
+
+
+def patch() -> None:
+    """Patch google.generativeai to run through Tygent's scheduler."""
+    try:
+        from google.generativeai import GenerativeModel  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        return
+
+    def _wrap(method_name: str) -> None:
+        original = getattr(GenerativeModel, method_name, None)
+        if original is None:
+            return
+
+        async def _node_fn(self, *args, **kwargs):
+            if asyncio.iscoroutinefunction(original):
+                return await original(self, *args, **kwargs)
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, original, self, *args, **kwargs)
+
+        if asyncio.iscoroutinefunction(original):
+
+            async def patched(self, *args, **kwargs):
+                dag = DAG("google_ai_generate")
+                dag.add_node(LLMNode("call", model=self, prompt_template=""))
+                dag.nodes["call"].execute = lambda inputs: _node_fn(
+                    self, *args, **kwargs
+                )
+                scheduler = Scheduler(dag)
+                result = await scheduler.execute({})
+                return result["results"]["call"]
+
+        else:
+
+            def patched(self, *args, **kwargs):
+                async def run():
+                    dag = DAG("google_ai_generate")
+                    dag.add_node(LLMNode("call", model=self, prompt_template=""))
+                    dag.nodes["call"].execute = lambda inputs: _node_fn(
+                        self, *args, **kwargs
+                    )
+                    scheduler = Scheduler(dag)
+                    result = await scheduler.execute({})
+                    return result["results"]["call"]
+
+                return asyncio.run(run())
+
+        setattr(GenerativeModel, f"_tygent_{method_name}", original)
+        setattr(GenerativeModel, method_name, patched)
+
+    for name in ("generate_content", "generateContent"):
+        _wrap(name)

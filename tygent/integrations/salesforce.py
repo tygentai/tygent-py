@@ -4,8 +4,9 @@ Salesforce Integration for Tygent
 This module provides optimized integration with Salesforce and Einstein AI services.
 """
 
-from typing import Dict, Any, List, Optional, Callable, Union
 import asyncio
+from typing import Any, Callable, Dict, List, Optional, Union
+
 from ..dag import DAG
 from ..nodes import BaseNode, LLMNode
 from ..scheduler import Scheduler
@@ -529,3 +530,33 @@ class TygentBatchProcessor:
     # Backwards compatible camelCase helper
     async def bulkOperation(self, *args, **kwargs):
         return await self.bulk_operation(*args, **kwargs)
+
+
+def patch() -> None:
+    """Patch simple_salesforce.Salesforce.query to run through Tygent."""
+    try:
+        from simple_salesforce import Salesforce  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        return
+
+    original = getattr(Salesforce, "query", None)
+    if original is None:
+        return
+
+    def patched(self, *args, **kwargs):
+        async def _node_fn(_):
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, original, self, *args, **kwargs)
+
+        async def run():
+            dag = DAG("sf_query")
+            node = ToolNode("query", _node_fn)
+            dag.add_node(node)
+            scheduler = Scheduler(dag)
+            result = await scheduler.execute({})
+            return result["results"]["query"]
+
+        return asyncio.run(run())
+
+    setattr(Salesforce, "_tygent_query", original)
+    setattr(Salesforce, "query", patched)

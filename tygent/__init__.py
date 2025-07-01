@@ -22,6 +22,7 @@ from .agent import Agent
 from .dag import DAG
 from .multi_agent import CommunicationBus, Message, MultiAgentManager
 from .nodes import BaseNode, LLMNode, Node, ToolNode
+from .patch import install
 from .plan_parser import parse_plan
 from .scheduler import Scheduler
 
@@ -43,4 +44,5 @@ __all__ = [
     "create_conditional_branch_rule",
     "create_resource_adaptation_rule",
     "parse_plan",
+    "install",
 ]
