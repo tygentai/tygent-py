@@ -200,6 +200,17 @@ scheduler.priority_nodes = critical
 run_plan = accelerate(plan)
 ```
 
+If you have multiple plans (e.g. produced by different LLMs) you can
+combine them into a single DAG:
+
+```python
+from tygent import parse_plans, Scheduler
+
+dag, critical = parse_plans([plan_a, plan_b])
+scheduler = Scheduler(dag)
+scheduler.priority_nodes = critical
+```
+
 ## Testing
 
 ### Running Tests
