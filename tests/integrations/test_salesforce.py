@@ -3,12 +3,14 @@ Tests for Salesforce integration with Tygent.
 """
 
 import asyncio
-import pytest
 import unittest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from tygent.integrations.salesforce import (
-    SalesforceNode,
     SalesforceIntegration,
+    SalesforceNode,
     TygentBatchProcessor,
 )
 
