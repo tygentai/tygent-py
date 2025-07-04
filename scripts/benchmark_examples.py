@@ -20,7 +20,7 @@ for example in sorted(EXAMPLES_DIR.glob("*.py")):
     env_var = SKIP_REQUIREMENTS.get(example.name)
     if env_var and env_var not in os.environ:
         print(f"Skipping {example.name} (missing {env_var})")
-        results.append((example.name, None, False, f"missing {env_var}"))
+        results.append((example.name, None, False, None))
         continue
 
     print(f"Running {example.name}...")
