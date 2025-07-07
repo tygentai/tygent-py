@@ -25,7 +25,7 @@ from .multi_agent import CommunicationBus, Message, MultiAgentManager
 from .nodes import BaseNode, LLMNode, Node, ToolNode
 from .patch import install
 from .plan_parser import parse_plan, parse_plans
-from .scheduler import Scheduler
+from .scheduler import Scheduler, StopExecution
 
 __all__ = [
     "DAG",
@@ -34,6 +34,7 @@ __all__ = [
     "ToolNode",
     "BaseNode",
     "Scheduler",
+    "StopExecution",
     "Agent",
     "MultiAgentManager",
     "CommunicationBus",

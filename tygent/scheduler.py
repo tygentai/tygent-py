@@ -5,7 +5,14 @@ Scheduler for executing DAGs in Tygent.
 import asyncio
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+
+class StopExecution(Exception):
+    """Raised by hooks to halt further DAG execution."""
+
+    pass
+
 
 from tygent.dag import DAG
 
@@ -15,15 +22,24 @@ class Scheduler:
     Scheduler for executing DAGs.
     """
 
-    def __init__(self, dag: DAG, audit_file: Optional[str] = None):
+    def __init__(
+        self,
+        dag: DAG,
+        audit_file: Optional[str] = None,
+        hooks: Optional[List[Callable[..., Optional[bool]]]] = None,
+    ):
         """
         Initialize a scheduler.
 
         Args:
             dag: The DAG to schedule
+            audit_file: Optional path to write audit logs
+            hooks: Optional list of callables invoked during node execution
         """
         self.dag = dag
         self.audit_file = audit_file
+        self.hooks = hooks or []
+        self._stop = False
         self.max_parallel_nodes = 4
         self.max_execution_time = 60000  # milliseconds
         self.priority_nodes = []
@@ -40,6 +56,7 @@ class Scheduler:
         token_budget: Optional[int] = None,
         requests_per_minute: Optional[int] = None,
         audit_file: Optional[str] = None,
+        hooks: Optional[List[Callable[..., Optional[bool]]]] = None,
     ) -> None:
         """Configure scheduler parameters.
 
@@ -60,6 +77,9 @@ class Scheduler:
             Maximum allowed token usage for this execution.
         requests_per_minute : int, optional
             Limit on how many nodes may start per 60s window.
+        hooks : list of callables, optional
+            Functions invoked before and after node execution. Returning ``False``
+            or raising :class:`StopExecution` halts further processing.
         """
 
         if max_parallel_nodes is not None:
@@ -74,6 +94,44 @@ class Scheduler:
             self.requests_per_minute = requests_per_minute
         if audit_file is not None:
             self.audit_file = audit_file
+        if hooks is not None:
+            self.hooks = hooks
+
+    async def _run_hooks(
+        self,
+        stage: str,
+        node: Any,
+        inputs: Dict[str, Any],
+        output: Any,
+    ) -> None:
+        """Execute hook functions for a given stage."""
+
+        for hook in self.hooks:
+            try:
+                if asyncio.iscoroutinefunction(hook):
+                    cont = await hook(
+                        stage=stage,
+                        node=node,
+                        inputs=inputs,
+                        output=output,
+                        scheduler=self,
+                    )
+                else:
+                    cont = hook(
+                        stage=stage,
+                        node=node,
+                        inputs=inputs,
+                        output=output,
+                        scheduler=self,
+                    )
+                if cont is False:
+                    self._stop = True
+            except StopExecution:
+                self._stop = True
+            except Exception:
+                continue
+            if self._stop:
+                break
 
     async def execute(
         self,
@@ -209,11 +267,17 @@ class Scheduler:
                 tasks.append(self._execute_node(dag, node, inputs, dependency_outputs))
 
             # Execute all tasks in parallel
-            results = await asyncio.gather(*tasks)
+            try:
+                results = await asyncio.gather(*tasks)
+            except StopExecution:
+                return {"results": node_outputs}
 
             # Store results
             for node_name, result in zip(current_batch, results):
                 node_outputs[node_name] = result
+
+            if self._stop:
+                break
 
             # Update waiting nodes
             for node_name, deps in list(waiting_nodes.items()):
@@ -284,6 +348,10 @@ class Scheduler:
                 # No mapping, include all fields
                 node_inputs.update(dep_output)
 
+        await self._run_hooks("before_execute", node, node_inputs, None)
+        if self._stop:
+            raise StopExecution()
+
         start = time.time()
         status = "success"
         result: Any = None
@@ -295,6 +363,7 @@ class Scheduler:
 
             # Execute with timeout
             result = await asyncio.wait_for(node.execute(node_inputs), timeout=timeout)
+            await self._run_hooks("after_execute", node, node_inputs, result)
             return result
 
         except asyncio.TimeoutError:
@@ -322,3 +391,5 @@ class Scheduler:
                         f.write(json.dumps(entry) + "\n")
                 except Exception:
                     pass
+            await self._run_hooks("audit", node, node_inputs, result)
+            # Hook may request stopping further execution
