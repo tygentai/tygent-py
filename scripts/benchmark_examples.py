@@ -14,7 +14,9 @@ SKIP_REQUIREMENTS = {
     "salesforce_example.py": "SALESFORCE_USERNAME",
 }
 
-OPTIONAL_MODULES = {"langgraph_integration.py": ["langgraph", "langchain"]}
+OPTIONAL_MODULES = {
+    "langgraph_integration.py": ["langgraph", "langchain", "langchain_community"]
+}
 
 results = []
 
