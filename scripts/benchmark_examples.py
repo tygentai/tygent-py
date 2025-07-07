@@ -14,7 +14,7 @@ SKIP_REQUIREMENTS = {
     "salesforce_example.py": "SALESFORCE_USERNAME",
 }
 
-OPTIONAL_MODULES = {"langgraph_integration.py": "langchain"}
+OPTIONAL_MODULES = {"langgraph_integration.py": ["langgraph", "langchain"]}
 
 results = []
 
@@ -25,14 +25,28 @@ for example in sorted(EXAMPLES_DIR.glob("*.py")):
         results.append((example.name, None, False, None))
         continue
 
-    module_name = OPTIONAL_MODULES.get(example.name)
-    if module_name:
+    module_names = OPTIONAL_MODULES.get(example.name)
+    if module_names:
         from importlib.util import find_spec
 
-        if find_spec(module_name) is None:
-            print(f"Skipping {example.name} (missing {module_name})")
-            results.append((example.name, None, False, None))
-            continue
+        if isinstance(module_names, str):
+            module_names = [module_names]
+
+        missing = [m for m in module_names if find_spec(m) is None]
+        if missing:
+            print(
+                f"Installing missing modules for {example.name}: {', '.join(missing)}"
+            )
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", *missing]
+                )
+            except subprocess.CalledProcessError:
+                print(
+                    f"Skipping {example.name} (failed to install {', '.join(missing)})"
+                )
+                results.append((example.name, None, False, None))
+                continue
 
     print(f"Running {example.name}...")
     start = time.perf_counter()
