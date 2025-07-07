@@ -17,6 +17,7 @@ from .adaptive_executor import (
     create_resource_adaptation_rule,
 )
 from .agent import Agent
+from .audit import audit_dag, audit_plan, audit_plans
 
 # Import core modules
 from .dag import DAG
@@ -45,5 +46,8 @@ __all__ = [
     "create_resource_adaptation_rule",
     "parse_plan",
     "parse_plans",
+    "audit_dag",
+    "audit_plan",
+    "audit_plans",
     "install",
 ]

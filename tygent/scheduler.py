@@ -3,6 +3,7 @@ Scheduler for executing DAGs in Tygent.
 """
 
 import asyncio
+import json
 import time
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +15,7 @@ class Scheduler:
     Scheduler for executing DAGs.
     """
 
-    def __init__(self, dag: DAG):
+    def __init__(self, dag: DAG, audit_file: Optional[str] = None):
         """
         Initialize a scheduler.
 
@@ -22,6 +23,7 @@ class Scheduler:
             dag: The DAG to schedule
         """
         self.dag = dag
+        self.audit_file = audit_file
         self.max_parallel_nodes = 4
         self.max_execution_time = 60000  # milliseconds
         self.priority_nodes = []
@@ -37,6 +39,7 @@ class Scheduler:
         priority_nodes: Optional[List[str]] = None,
         token_budget: Optional[int] = None,
         requests_per_minute: Optional[int] = None,
+        audit_file: Optional[str] = None,
     ) -> None:
         """Configure scheduler parameters.
 
@@ -69,6 +72,8 @@ class Scheduler:
             self.token_budget = token_budget
         if requests_per_minute is not None:
             self.requests_per_minute = requests_per_minute
+        if audit_file is not None:
+            self.audit_file = audit_file
 
     async def execute(
         self,
@@ -279,6 +284,10 @@ class Scheduler:
                 # No mapping, include all fields
                 node_inputs.update(dep_output)
 
+        start = time.time()
+        status = "success"
+        result: Any = None
+
         # Set timeout based on max_execution_time
         try:
             # Convert milliseconds to seconds for asyncio
@@ -290,9 +299,26 @@ class Scheduler:
 
         except asyncio.TimeoutError:
             # Handle timeout
+            status = "timeout"
             raise TimeoutError(
                 f"Node {node.name} execution timed out after {self.max_execution_time}ms"
             )
         except Exception as e:
+            status = f"error: {e}"
             # Handle other exceptions
             raise RuntimeError(f"Error executing node {node.name}: {str(e)}")
+        finally:
+            if self.audit_file:
+                entry = {
+                    "node": node.name,
+                    "start": start,
+                    "end": time.time(),
+                    "status": status,
+                    "inputs": node_inputs,
+                    "output": result,
+                }
+                try:
+                    with open(self.audit_file, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(entry) + "\n")
+                except Exception:
+                    pass
