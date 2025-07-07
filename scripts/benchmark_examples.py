@@ -14,6 +14,8 @@ SKIP_REQUIREMENTS = {
     "salesforce_example.py": "SALESFORCE_USERNAME",
 }
 
+OPTIONAL_MODULES = {"langgraph_integration.py": "langchain"}
+
 results = []
 
 for example in sorted(EXAMPLES_DIR.glob("*.py")):
@@ -22,6 +24,15 @@ for example in sorted(EXAMPLES_DIR.glob("*.py")):
         print(f"Skipping {example.name} (missing {env_var})")
         results.append((example.name, None, False, None))
         continue
+
+    module_name = OPTIONAL_MODULES.get(example.name)
+    if module_name:
+        from importlib.util import find_spec
+
+        if find_spec(module_name) is None:
+            print(f"Skipping {example.name} (missing {module_name})")
+            results.append((example.name, None, False, None))
+            continue
 
     print(f"Running {example.name}...")
     start = time.perf_counter()
