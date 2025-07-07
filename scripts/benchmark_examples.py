@@ -47,3 +47,9 @@ for name, duration, success, improvement in results:
     if improvement is not None:
         line += f", {improvement:.1f}% faster"
     print(line)
+
+failed = any(
+    duration is not None and not success for _, duration, success, _ in results
+)
+if failed:
+    sys.exit(1)
