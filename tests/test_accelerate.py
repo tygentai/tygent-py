@@ -53,6 +53,20 @@ class TestAccelerate(unittest.TestCase):
         result = add_one(4)
         self.assertEqual(result, 5)
 
+    def test_accelerate_in_running_loop(self):
+        @accelerate
+        async def add_one(x):
+            await asyncio.sleep(0)
+            return x + 1
+
+        async def run():
+            coro = add_one(5)
+            self.assertTrue(asyncio.iscoroutine(coro))
+            return await coro
+
+        value = asyncio.run(run())
+        self.assertEqual(value, 6)
+
 
 if __name__ == "__main__":
     unittest.main()
