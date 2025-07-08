@@ -24,11 +24,21 @@ from openai import AsyncOpenAI
 from tygent import accelerate
 
 
-def _get_openai_client() -> Optional[AsyncOpenAI]:
-    """Return an AsyncOpenAI client or ``None`` if no API key is found."""
+def _get_openai_client() -> AsyncOpenAI:
+    """Return an AsyncOpenAI client.
+
+    Raises
+    ------
+    RuntimeError
+        If no OpenAI API key is available via ``OPENAI_API_KEY`` or
+        ``OPENAI_APY_KEY``.
+    """
+
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
     if not api_key:
-        return None
+        raise RuntimeError(
+            "OpenAI API key not found. Set OPENAI_API_KEY or OPENAI_APY_KEY"
+        )
     return AsyncOpenAI(api_key=api_key)
 
 
@@ -101,12 +111,7 @@ async def activity_recommendations(
 
 
 async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
-    """Generate a short itinerary using an OpenAI model.
-
-    Falls back to a simple string if no API key is available or the request
-    fails. This allows the example and benchmark to run in restricted
-    environments.
-    """
+    """Generate a short itinerary using an OpenAI model."""
 
     prompt = (
         f"Create a short travel itinerary for {destination} including: "
@@ -114,8 +119,6 @@ async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
     )
 
     client = _get_openai_client()
-    if client is None:
-        return f"Travel plan for {destination}: {', '.join(activities)}"
 
     try:
         response = await client.chat.completions.create(
@@ -123,8 +126,8 @@ async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
             messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content.strip()
-    except Exception:
-        return f"Travel plan for {destination}: {', '.join(activities)}"
+    except Exception as e:
+        raise RuntimeError(f"OpenAI request failed: {e}") from e
 
 
 # Your existing workflow that we want to make adaptive
