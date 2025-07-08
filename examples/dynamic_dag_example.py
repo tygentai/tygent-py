@@ -23,8 +23,15 @@ from openai import AsyncOpenAI
 
 from tygent import accelerate
 
-# Initialize OpenAI client using repo secret
-openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def _get_openai_client() -> AsyncOpenAI:
+    """Return an AsyncOpenAI client using repository secrets."""
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY or OPENAI_APY_KEY environment variable must be set"
+        )
+    return AsyncOpenAI(api_key=api_key)
 
 
 # Simulated external services
@@ -97,8 +104,12 @@ async def activity_recommendations(
 
 async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
     """Generate a short itinerary using an OpenAI model."""
-    prompt = f"Create a short travel itinerary for {destination} including: {', '.join(activities)}."
-    response = await openai_client.chat.completions.create(
+    client = _get_openai_client()
+    prompt = (
+        f"Create a short travel itinerary for {destination} including: "
+        f"{', '.join(activities)}."
+    )
+    response = await client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
     )

@@ -40,7 +40,11 @@ class OpenAIAgent(Agent):
 
     def __init__(self, name: str, model: str = "gpt-3.5-turbo") -> None:
         super().__init__(name)
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY or OPENAI_APY_KEY environment variable must be set"
+            )
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
 
