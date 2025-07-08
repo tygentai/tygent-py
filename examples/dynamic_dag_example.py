@@ -16,7 +16,7 @@ import os
 import random
 import sys
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 sys.path.append("./tygent-py")
 from openai import AsyncOpenAI
@@ -24,13 +24,11 @@ from openai import AsyncOpenAI
 from tygent import accelerate
 
 
-def _get_openai_client() -> AsyncOpenAI:
-    """Return an AsyncOpenAI client using repository secrets."""
+def _get_openai_client() -> Optional[AsyncOpenAI]:
+    """Return an AsyncOpenAI client or ``None`` if no API key is found."""
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
     if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY or OPENAI_APY_KEY environment variable must be set"
-        )
+        return None
     return AsyncOpenAI(api_key=api_key)
 
 
@@ -103,17 +101,30 @@ async def activity_recommendations(
 
 
 async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
-    """Generate a short itinerary using an OpenAI model."""
-    client = _get_openai_client()
+    """Generate a short itinerary using an OpenAI model.
+
+    Falls back to a simple string if no API key is available or the request
+    fails. This allows the example and benchmark to run in restricted
+    environments.
+    """
+
     prompt = (
         f"Create a short travel itinerary for {destination} including: "
         f"{', '.join(activities)}."
     )
-    response = await client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content.strip()
+
+    client = _get_openai_client()
+    if client is None:
+        return f"Travel plan for {destination}: {', '.join(activities)}"
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return f"Travel plan for {destination}: {', '.join(activities)}"
 
 
 # Your existing workflow that we want to make adaptive

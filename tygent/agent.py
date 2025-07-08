@@ -41,17 +41,17 @@ class OpenAIAgent(Agent):
     def __init__(self, name: str, model: str = "gpt-3.5-turbo") -> None:
         super().__init__(name)
         api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY or OPENAI_APY_KEY environment variable must be set"
-            )
-        self.client = AsyncOpenAI(api_key=api_key)
+        self.client = AsyncOpenAI(api_key=api_key) if api_key else None
         self.model = model
 
     async def execute(self, inputs: Dict[str, Any]) -> str:
         messages = inputs.get("messages")
         if not isinstance(messages, list):
             raise ValueError("inputs must include a list of 'messages'")
+        if self.client is None:
+            raise RuntimeError(
+                "OpenAI API key not found. Set OPENAI_API_KEY or OPENAI_APY_KEY"
+            )
 
         response = await self.client.chat.completions.create(
             model=self.model, messages=messages
