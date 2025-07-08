@@ -2,7 +2,10 @@
 Agent implementation for Tygent.
 """
 
-from typing import Dict, List, Any, Optional
+import os
+from typing import Any, Dict, List, Optional
+
+from openai import AsyncOpenAI
 
 
 class Agent:
@@ -30,3 +33,23 @@ class Agent:
             The result of the agent execution
         """
         raise NotImplementedError("Subclasses must implement execute()")
+
+
+class OpenAIAgent(Agent):
+    """Agent that delegates tasks to an OpenAI model."""
+
+    def __init__(self, name: str, model: str = "gpt-3.5-turbo") -> None:
+        super().__init__(name)
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+
+    async def execute(self, inputs: Dict[str, Any]) -> str:
+        messages = inputs.get("messages")
+        if not isinstance(messages, list):
+            raise ValueError("inputs must include a list of 'messages'")
+
+        response = await self.client.chat.completions.create(
+            model=self.model, messages=messages
+        )
+        return response.choices[0].message.content
