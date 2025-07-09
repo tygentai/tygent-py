@@ -50,7 +50,7 @@ class TestAccelerate(unittest.TestCase):
         async def add_one(x):
             return x + 1
 
-        result = add_one(4)
+        result = asyncio.run(add_one(4))
         self.assertEqual(result, 5)
 
     def test_accelerate_in_running_loop(self):

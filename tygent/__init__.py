@@ -16,7 +16,7 @@ from .adaptive_executor import (
     create_fallback_rule,
     create_resource_adaptation_rule,
 )
-from .agent import Agent
+from .agent import Agent, OpenAIAgent
 
 # Import core modules
 from .dag import DAG
@@ -34,6 +34,7 @@ __all__ = [
     "BaseNode",
     "Scheduler",
     "Agent",
+    "OpenAIAgent",
     "MultiAgentManager",
     "CommunicationBus",
     "Message",

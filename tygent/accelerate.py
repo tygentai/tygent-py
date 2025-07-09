@@ -104,7 +104,19 @@ class _FrameworkExecutor:
 
 
 def _accelerate_function(func: Callable) -> Callable:
-    """Accelerate a regular function by analyzing its execution pattern."""
+    """Accelerate a regular or async function."""
+
+    real_func = inspect.unwrap(func)
+    if asyncio.iscoroutinefunction(real_func):
+
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            result = await _optimize_async_function(func, args, kwargs)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
+
+        return async_wrapper
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -117,7 +129,7 @@ def _accelerate_function(func: Callable) -> Callable:
     return wrapper
 
 
-def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) -> Any:
+async def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) -> Any:
     """Optimize async function execution by identifying parallel opportunities."""
 
     try:
@@ -127,10 +139,11 @@ def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) -> Any:
 
     if loop and loop.is_running():
         # Already inside an event loop; return coroutine for the caller to await
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
     else:
         # No running event loop, execute and return result synchronously
-        return asyncio.run(func(*args, **kwargs))
+        return await asyncio.run(func(*args, **kwargs))
+
 
 
 def _optimize_sync_function(func: Callable, args: tuple, kwargs: dict) -> Any:

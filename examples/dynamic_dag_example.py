@@ -12,13 +12,34 @@ Features demonstrated:
 """
 
 import asyncio
+import os
 import random
 import sys
 import time
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-sys.path.append("./tygent-py")
+# Ensure local package import when running from source checkout
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
+from openai import AsyncOpenAI
+
 from tygent import accelerate
+
+
+def _get_openai_client() -> AsyncOpenAI:
+    """Return an AsyncOpenAI client.
+
+    Raises
+    ------
+    RuntimeError
+        If no OpenAI API key is available via ``OPENAI_API_KEY``.
+    """
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OpenAI API key not found. Set OPENAI_API_KEY")
+    return AsyncOpenAI(api_key=api_key)
 
 
 # Simulated external services
@@ -89,6 +110,26 @@ async def activity_recommendations(
     return {"recommended_activities": activities[:3]}
 
 
+async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
+    """Generate a short itinerary using an OpenAI model."""
+
+    prompt = (
+        f"Create a short travel itinerary for {destination} including: "
+        f"{', '.join(activities)}."
+    )
+
+    client = _get_openai_client()
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+
 # Your existing workflow that we want to make adaptive
 async def travel_planning_workflow(destination: str) -> str:
     """Travel planning workflow that adapts to failures and conditions."""
@@ -137,7 +178,12 @@ async def travel_planning_workflow(destination: str) -> str:
         local_options = await get_local_alternatives(destination, recommendations)
         recommendations = local_options
 
-    return f"Travel plan for {destination}: {', '.join(recommendations['recommended_activities'])}"
+    # Step 6: Summarize itinerary using an LLM
+    itinerary = await llm_finalize_plan(
+        destination, recommendations["recommended_activities"]
+    )
+
+    return itinerary
 
 
 async def get_indoor_alternatives(location: str) -> Dict[str, Any]:
@@ -225,4 +271,13 @@ async def main():
 if __name__ == "__main__":
     # Set random seed for reproducible demo results
     random.seed(42)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "asyncio.run() cannot be called" in str(e):
+            # Fallback for interactive environments with an existing event loop
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(main())
+            loop.run_until_complete(task)
+        else:
+            raise
