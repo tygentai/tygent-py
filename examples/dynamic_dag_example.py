@@ -16,9 +16,12 @@ import os
 import random
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-sys.path.append("./tygent-py")
+# Ensure local package import when running from source checkout
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT_DIR))
 from openai import AsyncOpenAI
 
 from tygent import accelerate
