@@ -271,4 +271,13 @@ async def main():
 if __name__ == "__main__":
     # Set random seed for reproducible demo results
     random.seed(42)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "asyncio.run() cannot be called" in str(e):
+            # Fallback for interactive environments with an existing event loop
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(main())
+            loop.run_until_complete(task)
+        else:
+            raise
