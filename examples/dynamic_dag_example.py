@@ -30,15 +30,12 @@ def _get_openai_client() -> AsyncOpenAI:
     Raises
     ------
     RuntimeError
-        If no OpenAI API key is available via ``OPENAI_API_KEY`` or
-        ``OPENAI_APY_KEY``.
+        If no OpenAI API key is available via ``OPENAI_API_KEY``.
     """
 
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APY_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "OpenAI API key not found. Set OPENAI_API_KEY or OPENAI_APY_KEY"
-        )
+        raise RuntimeError("OpenAI API key not found. Set OPENAI_API_KEY")
     return AsyncOpenAI(api_key=api_key)
 
 
