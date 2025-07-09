@@ -35,4 +35,4 @@ def test_dynamic_dag_example_runs(capsys, monkeypatch):
     captured = capsys.readouterr().out
     print(captured)
     assert "Dynamic DAG Modification Example" in captured
-    assert "Performance improvement" in captured
+    assert "Dynamic adaptations applied" in captured
