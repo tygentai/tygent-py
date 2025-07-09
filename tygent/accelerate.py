@@ -104,14 +104,17 @@ class _FrameworkExecutor:
 
 
 def _accelerate_function(func: Callable) -> Callable:
-    """Accelerate a regular function by analyzing its execution pattern."""
+    """Accelerate a regular or async function."""
 
-    if asyncio.iscoroutinefunction(func):
+    real_func = inspect.unwrap(func)
+    if asyncio.iscoroutinefunction(real_func):
 
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
-            # Run async functions without spawning a new event loop
-            return await _optimize_async_function(func, args, kwargs)
+            result = await _optimize_async_function(func, args, kwargs)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
 
         return async_wrapper
 
