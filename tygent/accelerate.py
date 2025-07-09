@@ -120,7 +120,11 @@ def _accelerate_function(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        return _optimize_sync_function(func, args, kwargs)
+        # For simple functions, analyze if they contain multiple async calls that can be parallelized
+        if asyncio.iscoroutinefunction(func):
+            return _optimize_async_function(func, args, kwargs)
+        else:
+            return _optimize_sync_function(func, args, kwargs)
 
     return wrapper
 
@@ -128,9 +132,18 @@ def _accelerate_function(func: Callable) -> Callable:
 async def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) -> Any:
     """Optimize async function execution by identifying parallel opportunities."""
 
-    # Simply await the original function for now; ``accelerate`` ensures this
-    # runs in the caller's event loop without invoking ``asyncio.run``.
-    return await func(*args, **kwargs)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # Already inside an event loop; return coroutine for the caller to await
+        return await func(*args, **kwargs)
+    else:
+        # No running event loop, execute and return result synchronously
+        return await asyncio.run(func(*args, **kwargs))
+
 
 
 def _optimize_sync_function(func: Callable, args: tuple, kwargs: dict) -> Any:
