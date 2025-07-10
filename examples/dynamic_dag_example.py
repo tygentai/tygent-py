@@ -12,19 +12,22 @@ Features demonstrated:
 """
 
 import asyncio
+import json
 import os
 import random
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
 # Ensure local package import when running from source checkout
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
+import aiohttp
 from openai import AsyncOpenAI
 
 from tygent import accelerate
+from tygent.agent import Agent
 
 
 def _get_openai_client() -> AsyncOpenAI:
@@ -42,92 +45,380 @@ def _get_openai_client() -> AsyncOpenAI:
     return AsyncOpenAI(api_key=api_key)
 
 
-# Simulated external services
-async def weather_api_call(location: str) -> Dict[str, Any]:
-    """Simulated weather API that sometimes fails."""
-    print(f"Calling weather API for {location}...")
-    await asyncio.sleep(0.5)
+# External services implemented as agents
+class WeatherAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("weather_agent")
 
-    # Simulate API failure 30% of the time
-    if random.random() < 0.3:
-        raise Exception("Weather API temporarily unavailable")
+    async def _geocode(
+        self, session: "aiohttp.ClientSession", location: str
+    ) -> Tuple[float, float]:
+        """Get latitude and longitude for a location using Open-Meteo."""
+        params = {"name": location, "count": 1}
+        async with session.get(
+            "https://geocoding-api.open-meteo.com/v1/search", params=params
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"Geocoding failed ({resp.status}): {text}")
+            data = await resp.json()
+            results = data.get("results")
+            if not results:
+                raise RuntimeError(f"Location '{location}' not found")
+            return float(results[0]["latitude"]), float(results[0]["longitude"])
 
-    return {
-        "temperature": random.randint(60, 85),
-        "conditions": random.choice(["sunny", "cloudy", "rainy", "stormy"]),
-        "location": location,
-    }
+    async def _fetch_weather(
+        self, session: "aiohttp.ClientSession", lat: float, lon: float
+    ) -> Dict[str, Any]:
+        """Retrieve current weather data from Open-Meteo."""
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current_weather": "true",
+            "timezone": "UTC",
+        }
+        async with session.get(
+            "https://api.open-meteo.com/v1/forecast", params=params
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"Weather API error ({resp.status}): {text}")
+            data = await resp.json()
+            return data.get("current_weather", {})
 
-
-async def backup_weather_service(location: str) -> Dict[str, Any]:
-    """Backup weather service with different data format."""
-    print(f"Using backup weather service for {location}...")
-    await asyncio.sleep(0.3)
-
-    return {
-        "temp_f": random.randint(55, 80),
-        "weather": random.choice(["clear", "overcast", "precipitation"]),
-        "city": location,
-    }
-
-
-async def traffic_api_call(location: str) -> Dict[str, Any]:
-    """Traffic information API."""
-    print(f"Getting traffic data for {location}...")
-    await asyncio.sleep(0.4)
-
-    return {
-        "traffic_level": random.choice(["light", "moderate", "heavy"]),
-        "avg_speed": random.randint(25, 65),
-        "incidents": random.randint(0, 3),
-    }
-
-
-async def activity_recommendations(
-    weather: Dict[str, Any], traffic: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Generate activity recommendations based on conditions."""
-    print("Generating activity recommendations...")
-    await asyncio.sleep(0.2)
-
-    activities = []
-
-    # Weather-based recommendations
-    temp = weather.get("temperature", weather.get("temp_f", 70))
-    conditions = weather.get("conditions", weather.get("weather", "clear"))
-
-    if temp > 75 and conditions in ["sunny", "clear"]:
-        activities.extend(["outdoor hiking", "beach visit", "picnic"])
-    elif conditions in ["rainy", "precipitation"]:
-        activities.extend(["museum visit", "indoor shopping", "movie theater"])
-    else:
-        activities.extend(["city walking tour", "cafe hopping"])
-
-    # Traffic-based adjustments
-    if traffic["traffic_level"] == "heavy":
-        activities = [f"{activity} (avoid rush hour)" for activity in activities]
-
-    return {"recommended_activities": activities[:3]}
-
-
-async def llm_finalize_plan(destination: str, activities: List[str]) -> str:
-    """Generate a short itinerary using an OpenAI model."""
-
-    prompt = (
-        f"Create a short travel itinerary for {destination} including: "
-        f"{', '.join(activities)}."
-    )
-
-    client = _get_openai_client()
-
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
+    async def _summarize_weather(self, weather: Dict[str, Any], location: str) -> str:
+        """Summarize raw weather data using an LLM."""
+        client = _get_openai_client()
+        prompt = (
+            f"Provide a short human readable summary for the following "
+            f"weather data in {location}: {weather}."
         )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        raise RuntimeError(f"OpenAI request failed: {e}") from e
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+    @staticmethod
+    def _code_to_text(code: int) -> str:
+        """Convert Open-Meteo weather code to descriptive text."""
+        mapping = {
+            0: "clear",
+            1: "mainly clear",
+            2: "partly cloudy",
+            3: "overcast",
+            45: "fog",
+            48: "depositing rime fog",
+            51: "light drizzle",
+            53: "moderate drizzle",
+            55: "dense drizzle",
+            61: "slight rain",
+            63: "moderate rain",
+            65: "heavy rain",
+            80: "rain showers",
+            95: "thunderstorm",
+        }
+        return mapping.get(code, f"code {code}")
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        location = inputs.get("location", "")
+        if not location:
+            raise ValueError("location must be provided")
+
+        async with aiohttp.ClientSession() as session:
+            lat, lon = await self._geocode(session, location)
+            weather_raw = await self._fetch_weather(session, lat, lon)
+
+        code = int(weather_raw.get("weathercode", 0))
+        temp_c = float(weather_raw.get("temperature", 0.0))
+        summary = await self._summarize_weather(weather_raw, location)
+
+        return {
+            "temperature": temp_c * 9 / 5 + 32,
+            "conditions": self._code_to_text(code),
+            "location": location,
+            "summary": summary,
+        }
+
+
+class BackupWeatherAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("backup_weather_agent")
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Backup weather service using wttr.in."""
+        location = inputs.get("location", "")
+        if not location:
+            raise ValueError("location must be provided")
+
+        print(f"Using backup weather service for {location}...")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://wttr.in/{location}?format=j1") as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise RuntimeError(f"wttr.in error ({resp.status}): {text}")
+                data = await resp.json()
+
+        current = data["current_condition"][0]
+        temp_f = float(current["temp_F"])
+        conditions = current["weatherDesc"][0]["value"].lower()
+
+        # Summarize using OpenAI
+        client = _get_openai_client()
+        prompt = (
+            f"Provide a short human readable summary for the following "
+            f"weather data in {location}: {current}."
+        )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            summary = response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+        return {
+            "temperature": temp_f,
+            "conditions": conditions,
+            "location": location,
+            "summary": summary,
+        }
+
+
+class TrafficAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("traffic_agent")
+
+    async def _find_network(
+        self, session: "aiohttp.ClientSession", location: str
+    ) -> str:
+        """Find the CityBikes network ID for the given location."""
+        async with session.get("https://api.citybik.es/v2/networks") as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"CityBikes lookup failed ({resp.status}): {text}")
+            data = await resp.json()
+            for network in data.get("networks", []):
+                city = network.get("location", {}).get("city", "").lower()
+                if city == location.lower():
+                    return network.get("id", "")
+        raise RuntimeError(f"No bike network found for {location}")
+
+    async def _fetch_network(
+        self, session: "aiohttp.ClientSession", network_id: str
+    ) -> Dict[str, Any]:
+        """Retrieve network details from CityBikes."""
+        url = f"https://api.citybik.es/v2/networks/{network_id}"
+        async with session.get(url) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"CityBikes network error ({resp.status}): {text}")
+            return (await resp.json()).get("network", {})
+
+    async def _summarize_traffic(self, traffic: Dict[str, Any], location: str) -> str:
+        """Summarize raw traffic data using an LLM."""
+        client = _get_openai_client()
+        prompt = (
+            f"Provide a short description of the following bike share data for {location}: "
+            f"{traffic}."
+        )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Retrieve traffic information from an external API."""
+        location = inputs.get("location", "")
+        if not location:
+            raise ValueError("location must be provided")
+
+        print(f"Getting traffic data for {location}...")
+
+        async with aiohttp.ClientSession() as session:
+            network_id = await self._find_network(session, location)
+            network_raw = await self._fetch_network(session, network_id)
+
+        stations = network_raw.get("stations", [])
+        if not stations:
+            raise RuntimeError(f"No station data for {location}")
+
+        free_bikes = sum(int(s.get("free_bikes") or 0) for s in stations)
+        empty_slots = sum(int(s.get("empty_slots") or 0) for s in stations)
+        total = free_bikes + empty_slots
+        availability = free_bikes / total if total else 0
+
+        if availability > 0.5:
+            traffic_level = "light"
+        elif availability > 0.2:
+            traffic_level = "moderate"
+        else:
+            traffic_level = "heavy"
+
+        incidents = sum(
+            1
+            for s in stations
+            if s.get("extra", {}).get("status", "online").lower() != "online"
+        )
+
+        summary = await self._summarize_traffic(network_raw, location)
+
+        return {
+            "traffic_level": traffic_level,
+            "avg_speed": 0,
+            "incidents": incidents,
+            "summary": summary,
+        }
+
+
+class ActivityRecommendationAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("activity_recommendation_agent")
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate activity recommendations via OpenAI."""
+        weather = inputs.get("weather", {})
+        traffic = inputs.get("traffic", {})
+        print("Generating activity recommendations...")
+
+        client = _get_openai_client()
+        prompt = (
+            "Suggest three short activities for a visitor given the following "
+            f"conditions:\nWeather: {weather}\nTraffic: {traffic}. "
+            'Respond in JSON as {"activities": [..]}'
+        )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = response.choices[0].message.content.strip()
+            try:
+                data = json.loads(content)
+                acts = data.get("activities")
+                if acts is None and isinstance(data, list):
+                    acts = data
+                elif acts is None:
+                    acts = []
+            except json.JSONDecodeError:
+                acts = [a.strip("- \n") for a in content.splitlines() if a.strip()]
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+        return {"recommended_activities": acts[:3]}
+
+
+class LLMFinalizeAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("llm_finalize_agent")
+
+    async def execute(self, inputs: Dict[str, Any]) -> str:
+        """Generate a short itinerary using an OpenAI model."""
+
+        destination = inputs.get("destination", "")
+        activities: List[str] = inputs.get("activities", [])
+        prompt = (
+            f"Create a short travel itinerary for {destination} including: "
+            f"{', '.join(activities)}."
+        )
+
+        client = _get_openai_client()
+
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+
+class IndoorAlternativesAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("indoor_alternatives_agent")
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Suggest indoor activities using OpenAI."""
+        location = inputs.get("location", "")
+        if not location:
+            raise ValueError("location must be provided")
+
+        print(f"Finding indoor activities in {location}...")
+
+        client = _get_openai_client()
+        prompt = (
+            f"List three interesting indoor activities in {location}. "
+            'Respond in JSON as {"options": [..]}'
+        )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = response.choices[0].message.content.strip()
+            try:
+                data = json.loads(content)
+                options = data.get("options")
+                if options is None and isinstance(data, list):
+                    options = data
+                elif options is None:
+                    options = []
+            except json.JSONDecodeError:
+                options = [a.strip("- \n") for a in content.splitlines() if a.strip()]
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+        return {"options": options[:3]}
+
+
+class LocalAlternativesAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("local_alternatives_agent")
+
+    async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Modify recommendations for heavy traffic conditions via OpenAI."""
+        location = inputs.get("location", "")
+        original_recs = inputs.get("original_recs", {})
+        if not location:
+            raise ValueError("location must be provided")
+
+        print(f"Optimizing for local activities in {location}...")
+
+        client = _get_openai_client()
+        prompt = (
+            f"Given these activities {original_recs.get('recommended_activities', [])} "
+            f"for a trip to {location}, suggest local alternatives that avoid traffic. "
+            'Respond in JSON as {"recommended_activities": [..]}'
+        )
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = response.choices[0].message.content.strip()
+            try:
+                data = json.loads(content)
+                acts = data.get("recommended_activities")
+                if acts is None and isinstance(data, list):
+                    acts = data
+                elif acts is None:
+                    acts = []
+            except json.JSONDecodeError:
+                acts = [a.strip("- \n") for a in content.splitlines() if a.strip()]
+        except Exception as e:
+            raise RuntimeError(f"OpenAI request failed: {e}") from e
+
+        return {"recommended_activities": acts[:3]}
 
 
 # Your existing workflow that we want to make adaptive
@@ -135,17 +426,23 @@ async def travel_planning_workflow(destination: str) -> str:
     """Travel planning workflow that adapts to failures and conditions."""
     print(f"Planning activities for {destination}")
 
+    weather_agent = WeatherAgent()
+    backup_weather_agent = BackupWeatherAgent()
+    traffic_agent = TrafficAgent()
+    activity_agent = ActivityRecommendationAgent()
+    llm_agent = LLMFinalizeAgent()
+    indoor_agent = IndoorAlternativesAgent()
+    local_agent = LocalAlternativesAgent()
+
     # Step 1: Get weather information (primary API)
     try:
-        weather_data = await weather_api_call(destination)
+        weather_data = await weather_agent.execute({"location": destination})
         print(
             f"✓ Weather: {weather_data['temperature']}°F, {weather_data['conditions']}"
         )
     except Exception as e:
         print(f"⚠ Primary weather API failed: {e}")
-        # Dynamic adaptation: switch to backup service
-        weather_data = await backup_weather_service(destination)
-        # Normalize the data format
+        weather_data = await backup_weather_agent.execute({"location": destination})
         weather_data = {
             "temperature": weather_data["temp_f"],
             "conditions": weather_data["weather"],
@@ -156,66 +453,57 @@ async def travel_planning_workflow(destination: str) -> str:
         )
 
     # Step 2: Get traffic information (can run in parallel with weather)
-    traffic_data = await traffic_api_call(destination)
-    print(
-        f"✓ Traffic: {traffic_data['traffic_level']} with {traffic_data['incidents']} incidents"
-    )
+    try:
+        traffic_data = await traffic_agent.execute({"location": destination})
+    except Exception as e:
+        print(f"⚠ Traffic data unavailable: {e}")
+        traffic_data = {
+            "traffic_level": "heavy",
+            "avg_speed": 10,
+            "incidents": 0,
+            "summary": "No real-time data available; assuming heavy traffic.",
+        }
+    else:
+        print(
+            f"✓ Traffic: {traffic_data['traffic_level']} with {traffic_data['incidents']} incidents"
+        )
 
     # Step 3: Conditional branching based on weather conditions
     if weather_data["conditions"] in ["stormy", "precipitation"]:
         print("🌧 Severe weather detected - adding indoor alternatives...")
-        # In real implementation, this would modify the DAG to include indoor activity nodes
-        indoor_activities = await get_indoor_alternatives(destination)
+        indoor_activities = await indoor_agent.execute({"location": destination})
         print(f"✓ Indoor alternatives: {indoor_activities['options']}")
 
     # Step 4: Generate recommendations
-    recommendations = await activity_recommendations(weather_data, traffic_data)
+    recommendations = await activity_agent.execute(
+        {"weather": weather_data, "traffic": traffic_data}
+    )
 
     # Step 5: Resource-aware execution
     if traffic_data["traffic_level"] == "heavy":
         print("🚗 Heavy traffic detected - optimizing for local activities...")
-        # This would trigger DAG modification to prioritize nearby locations
-        local_options = await get_local_alternatives(destination, recommendations)
+        local_options = await local_agent.execute(
+            {"location": destination, "original_recs": recommendations}
+        )
         recommendations = local_options
 
     # Step 6: Summarize itinerary using an LLM
-    itinerary = await llm_finalize_plan(
-        destination, recommendations["recommended_activities"]
+    itinerary = await llm_agent.execute(
+        {
+            "destination": destination,
+            "activities": recommendations["recommended_activities"],
+        }
     )
 
     return itinerary
-
-
-async def get_indoor_alternatives(location: str) -> Dict[str, Any]:
-    """Additional node added dynamically for bad weather."""
-    print(f"Finding indoor activities in {location}...")
-    await asyncio.sleep(0.3)
-    return {"options": ["art galleries", "indoor markets", "historic buildings"]}
-
-
-async def get_local_alternatives(
-    location: str, original_recs: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Modify recommendations for heavy traffic conditions."""
-    print(f"Optimizing for local activities in {location}...")
-    await asyncio.sleep(0.2)
-
-    # Filter for local activities
-    local_activities = []
-    for activity in original_recs["recommended_activities"]:
-        if "outdoor" in activity:
-            local_activities.append(f"local {activity}")
-        else:
-            local_activities.append(activity)
-
-    return {"recommended_activities": local_activities}
 
 
 async def main():
     print("Dynamic DAG Modification Example")
     print("================================\n")
 
-    destinations = ["San Francisco", "New York", "Seattle"]
+    # Cities should exist on CityBikes and be supported by the weather APIs
+    destinations = ["New York", "Chicago", "Austin"]
 
     for destination in destinations:
         print(f"\n{'='*50}")
