@@ -440,10 +440,20 @@ async def travel_planning_workflow(destination: str) -> str:
         )
 
     # Step 2: Get traffic information (can run in parallel with weather)
-    traffic_data = await traffic_agent.execute({"location": destination})
-    print(
-        f"✓ Traffic: {traffic_data['traffic_level']} with {traffic_data['incidents']} incidents"
-    )
+    try:
+        traffic_data = await traffic_agent.execute({"location": destination})
+    except Exception as e:
+        print(f"⚠ Traffic data unavailable: {e}")
+        traffic_data = {
+            "traffic_level": "heavy",
+            "avg_speed": 10,
+            "incidents": 0,
+            "summary": "No real-time data available; assuming heavy traffic.",
+        }
+    else:
+        print(
+            f"✓ Traffic: {traffic_data['traffic_level']} with {traffic_data['incidents']} incidents"
+        )
 
     # Step 3: Conditional branching based on weather conditions
     if weather_data["conditions"] in ["stormy", "precipitation"]:
