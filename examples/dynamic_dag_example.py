@@ -502,7 +502,8 @@ async def main():
     print("Dynamic DAG Modification Example")
     print("================================\n")
 
-    destinations = ["San Francisco", "New York", "Seattle"]
+    # Cities should exist on CityBikes and be supported by the weather APIs
+    destinations = ["New York", "Chicago", "Austin"]
 
     for destination in destinations:
         print(f"\n{'='*50}")
