@@ -28,5 +28,6 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "openai>=1.0.0",
+        "aiohttp>=3.8",
     ],
 )
