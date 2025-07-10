@@ -16,7 +16,8 @@ from .adaptive_executor import (
     create_fallback_rule,
     create_resource_adaptation_rule,
 )
-from .agent import Agent
+
+from .agent import Agent, OpenAIAgent
 from .audit import audit_dag, audit_plan, audit_plans
 
 # Import core modules
@@ -36,6 +37,7 @@ __all__ = [
     "Scheduler",
     "StopExecution",
     "Agent",
+    "OpenAIAgent",
     "MultiAgentManager",
     "CommunicationBus",
     "Message",

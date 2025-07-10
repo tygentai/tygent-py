@@ -14,6 +14,10 @@ SKIP_REQUIREMENTS = {
     "salesforce_example.py": "SALESFORCE_USERNAME",
 }
 
+OPTIONAL_MODULES = {
+    "langgraph_integration.py": ["langgraph", "langchain", "langchain_community"]
+}
+
 results = []
 
 for example in sorted(EXAMPLES_DIR.glob("*.py")):
@@ -22,6 +26,29 @@ for example in sorted(EXAMPLES_DIR.glob("*.py")):
         print(f"Skipping {example.name} (missing {env_var})")
         results.append((example.name, None, False, None))
         continue
+
+    module_names = OPTIONAL_MODULES.get(example.name)
+    if module_names:
+        from importlib.util import find_spec
+
+        if isinstance(module_names, str):
+            module_names = [module_names]
+
+        missing = [m for m in module_names if find_spec(m) is None]
+        if missing:
+            print(
+                f"Installing missing modules for {example.name}: {', '.join(missing)}"
+            )
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", *missing]
+                )
+            except subprocess.CalledProcessError:
+                print(
+                    f"Skipping {example.name} (failed to install {', '.join(missing)})"
+                )
+                results.append((example.name, None, False, None))
+                continue
 
     print(f"Running {example.name}...")
     start = time.perf_counter()
@@ -47,3 +74,9 @@ for name, duration, success, improvement in results:
     if improvement is not None:
         line += f", {improvement:.1f}% faster"
     print(line)
+
+failed = any(
+    duration is not None and not success for _, duration, success, _ in results
+)
+if failed:
+    sys.exit(1)

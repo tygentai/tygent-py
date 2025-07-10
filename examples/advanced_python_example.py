@@ -19,9 +19,12 @@ import asyncio
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List
 
-sys.path.append("./tygent-py")
+# Ensure the local package is used when running from the source checkout
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
 from tygent import accelerate
 
 # Set your API key - in production use environment variables
@@ -288,4 +291,12 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "asyncio.run() cannot be called" in str(e):
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(main())
+            loop.run_until_complete(task)
+        else:
+            raise
