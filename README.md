@@ -84,6 +84,7 @@ result = asyncio.run(
 - **🔄 Dynamic Adaptation**: Runtime DAG modification based on conditions and failures
 - **🎯 Multi-Framework Support**: Works with CrewAI, HuggingFace, Google AI, and custom agents
 - **📄 Plan Parsing**: Build DAGs directly from framework plans or dictionaries
+- **📋 Auditing & Tracing**: Inspect plans, hook into node execution, and record results
 
 ## Architecture
 
