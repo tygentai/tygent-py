@@ -194,46 +194,39 @@ class TrafficAgent(Agent):
     def __init__(self) -> None:
         super().__init__("traffic_agent")
 
-    async def _geocode(
+    async def _find_network(
         self, session: "aiohttp.ClientSession", location: str
-    ) -> Tuple[float, float]:
-        """Get latitude and longitude for a location using Open-Meteo."""
-        params = {"name": location, "count": 1}
-        async with session.get(
-            "https://geocoding-api.open-meteo.com/v1/search", params=params
-        ) as resp:
+    ) -> str:
+        """Find the CityBikes network ID for the given location."""
+        async with session.get("https://api.citybik.es/v2/networks") as resp:
             if resp.status >= 400:
                 text = await resp.text()
-                raise RuntimeError(f"Geocoding failed ({resp.status}): {text}")
+                raise RuntimeError(f"CityBikes lookup failed ({resp.status}): {text}")
             data = await resp.json()
-            results = data.get("results")
-            if not results:
-                raise RuntimeError(f"Location '{location}' not found")
-            return float(results[0]["latitude"]), float(results[0]["longitude"])
+            for network in data.get("networks", []):
+                city = network.get("location", {}).get("city", "").lower()
+                if city == location.lower():
+                    return network.get("id", "")
+        raise RuntimeError(f"No bike network found for {location}")
 
-    async def _fetch_traffic(
-        self, session: "aiohttp.ClientSession", lat: float, lon: float
+    async def _fetch_network(
+        self, session: "aiohttp.ClientSession", network_id: str
     ) -> Dict[str, Any]:
-        """Retrieve traffic flow data from TomTom."""
-        api_key = os.getenv("TOMTOM_API_KEY")
-        if not api_key:
-            raise RuntimeError("TOMTOM_API_KEY not set")
-        params = {
-            "key": api_key,
-            "point": f"{lat},{lon}",
-        }
-        url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/10/json"
-        async with session.get(url, params=params) as resp:
+        """Retrieve network details from CityBikes."""
+        url = f"https://api.citybik.es/v2/networks/{network_id}"
+        async with session.get(url) as resp:
             if resp.status >= 400:
                 text = await resp.text()
-                raise RuntimeError(f"Traffic API error ({resp.status}): {text}")
-            data = await resp.json()
-            return data.get("flowSegmentData", {})
+                raise RuntimeError(f"CityBikes network error ({resp.status}): {text}")
+            return (await resp.json()).get("network", {})
 
     async def _summarize_traffic(self, traffic: Dict[str, Any], location: str) -> str:
         """Summarize raw traffic data using an LLM."""
         client = _get_openai_client()
-        prompt = f"Provide a short description of the following traffic data for {location}: {traffic}."
+        prompt = (
+            f"Provide a short description of the following bike share data for {location}: "
+            f"{traffic}."
+        )
         try:
             response = await client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -252,28 +245,36 @@ class TrafficAgent(Agent):
         print(f"Getting traffic data for {location}...")
 
         async with aiohttp.ClientSession() as session:
-            lat, lon = await self._geocode(session, location)
-            traffic_raw = await self._fetch_traffic(session, lat, lon)
+            network_id = await self._find_network(session, location)
+            network_raw = await self._fetch_network(session, network_id)
 
-        current_speed = float(traffic_raw.get("currentSpeed", 0.0))
-        free_speed = float(traffic_raw.get("freeFlowSpeed", 0.0))
-        ratio = current_speed / free_speed if free_speed else 0
+        stations = network_raw.get("stations", [])
+        if not stations:
+            raise RuntimeError(f"No station data for {location}")
 
-        if ratio >= 0.8:
+        free_bikes = sum(int(s.get("free_bikes") or 0) for s in stations)
+        empty_slots = sum(int(s.get("empty_slots") or 0) for s in stations)
+        total = free_bikes + empty_slots
+        availability = free_bikes / total if total else 0
+
+        if availability > 0.5:
             traffic_level = "light"
-        elif ratio >= 0.5:
+        elif availability > 0.2:
             traffic_level = "moderate"
         else:
             traffic_level = "heavy"
 
-        avg_speed = current_speed
-        incidents = int(traffic_raw.get("confidence", 0))
+        incidents = sum(
+            1
+            for s in stations
+            if s.get("extra", {}).get("status", "online").lower() != "online"
+        )
 
-        summary = await self._summarize_traffic(traffic_raw, location)
+        summary = await self._summarize_traffic(network_raw, location)
 
         return {
             "traffic_level": traffic_level,
-            "avg_speed": avg_speed,
+            "avg_speed": 0,
             "incidents": incidents,
             "summary": summary,
         }
