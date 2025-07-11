@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.0] - 2025-07-11
+### Changed
+- Bump project version to 0.4.0 for new package release.
+
 ## [0.3.0] - 2025-06-23
 ### Changed
 - Bump project version to 0.3.0 for Pupil publication.
