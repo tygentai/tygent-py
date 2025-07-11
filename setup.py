@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="tygent",
-    version="0.3.0",
+    version="0.4.0",
     author="Tygent Team",
     author_email="info@tygent.ai",
     description="Transform LLM Agents into High-Performance Engines with DAG optimization",

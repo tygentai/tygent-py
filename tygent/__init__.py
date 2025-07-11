@@ -6,7 +6,7 @@ for optimized execution through critical path analysis. It also supports multi-a
 orchestration with optimized communication patterns.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .accelerate import accelerate
 from .adaptive_executor import (
@@ -16,7 +16,6 @@ from .adaptive_executor import (
     create_fallback_rule,
     create_resource_adaptation_rule,
 )
-
 from .agent import Agent, OpenAIAgent
 from .audit import audit_dag, audit_plan, audit_plans
 
