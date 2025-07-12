@@ -8,7 +8,7 @@ optimization.
 import asyncio
 import os
 import sys
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 
 import aiohttp
 from openai import AsyncOpenAI
@@ -61,9 +61,9 @@ class SearchAgent(Agent):
                     raise RuntimeError(f"No Wikipedia results for '{query}'")
                 title = search_results[0]["title"]
 
+            encoded = quote(title.replace(" ", "_"), safe="")
             summary_url = (
-                "https://en.wikipedia.org/api/rest_v1/page/summary/"
-                f"{quote_plus(title)}"
+                "https://en.wikipedia.org/api/rest_v1/page/summary/" f"{encoded}"
             )
             async with session.get(summary_url) as resp:
                 if resp.status >= 400:
