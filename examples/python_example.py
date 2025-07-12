@@ -1,40 +1,146 @@
 """
 Example usage of the Tygent Python package - Simple Accelerate Pattern
-Shows how to use Tygent's accelerate() function for drop-in optimization.
+Demonstrates real agents that fetch data from public APIs and analyze it
+with OpenAI. Shows how to use Tygent's accelerate() function for drop-in
+optimization.
 """
 
 import asyncio
 import os
 import sys
+from urllib.parse import quote_plus
+
+import aiohttp
+from openai import AsyncOpenAI
 
 sys.path.append("./tygent-py")
 from tygent import accelerate
+from tygent.agent import Agent
 
 # Set your API key - in production use environment variables
 # os.environ["OPENAI_API_KEY"] = "your-api-key"  # Uncomment and set your API key
 
 
-async def search_data(query):
-    """Example search function."""
-    print(f"Searching for: {query}")
-    # In real implementation, this would call a search API
-    await asyncio.sleep(0.5)  # Simulate API call
-    return f"Search results for '{query}'"
+def _get_openai_client() -> AsyncOpenAI:
+    """Return an AsyncOpenAI client using the ``OPENAI_API_KEY`` env var."""
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OpenAI API key not found. Set OPENAI_API_KEY")
+    return AsyncOpenAI(api_key=api_key)
 
 
-async def get_weather(location):
-    """Example weather function."""
-    print(f"Getting weather for: {location}")
-    # In real implementation, this would call a weather API
-    await asyncio.sleep(0.3)  # Simulate API call
-    return {"temperature": 72, "conditions": "Sunny", "location": location}
+class SearchAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("search_agent")
+
+    async def execute(self, inputs):
+        query = inputs.get("query", "")
+        print(f"Searching Wikipedia for '{query}'...")
+        url = (
+            "https://en.wikipedia.org/api/rest_v1/page/summary/" f"{quote_plus(query)}"
+        )
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise RuntimeError(f"Wikipedia API error ({resp.status}): {text}")
+                data = await resp.json()
+        return {"summary": data.get("extract", ""), "title": data.get("title", query)}
 
 
-async def analyze_data(search_results, weather_data):
-    """Example analysis function."""
-    print("Analyzing combined data...")
-    await asyncio.sleep(0.2)  # Simulate processing
-    return f"Analysis: {search_results} combined with weather {weather_data}"
+class WeatherAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("weather_agent")
+
+    async def _geocode(self, session: aiohttp.ClientSession, location: str):
+        params = {"name": location, "count": 1}
+        async with session.get(
+            "https://geocoding-api.open-meteo.com/v1/search", params=params
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"Geocoding failed ({resp.status}): {text}")
+            data = await resp.json()
+            results = data.get("results")
+            if not results:
+                raise RuntimeError(f"Location '{location}' not found")
+            return float(results[0]["latitude"]), float(results[0]["longitude"])
+
+    async def _fetch_weather(
+        self, session: aiohttp.ClientSession, lat: float, lon: float
+    ):
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current_weather": "true",
+            "timezone": "UTC",
+        }
+        async with session.get(
+            "https://api.open-meteo.com/v1/forecast", params=params
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(f"Weather API error ({resp.status}): {text}")
+            data = await resp.json()
+            return data.get("current_weather", {})
+
+    @staticmethod
+    def _code_to_text(code: int) -> str:
+        mapping = {
+            0: "clear",
+            1: "mainly clear",
+            2: "partly cloudy",
+            3: "overcast",
+            45: "fog",
+            48: "depositing rime fog",
+            51: "light drizzle",
+            53: "moderate drizzle",
+            55: "dense drizzle",
+            61: "slight rain",
+            63: "moderate rain",
+            65: "heavy rain",
+            80: "rain showers",
+            95: "thunderstorm",
+        }
+        return mapping.get(code, f"code {code}")
+
+    async def execute(self, inputs):
+        location = inputs.get("location", "")
+        if not location:
+            raise ValueError("location must be provided")
+
+        async with aiohttp.ClientSession() as session:
+            lat, lon = await self._geocode(session, location)
+            weather_raw = await self._fetch_weather(session, lat, lon)
+
+        code = int(weather_raw.get("weathercode", 0))
+        temp_c = float(weather_raw.get("temperature", 0.0))
+        return {
+            "temperature": temp_c * 9 / 5 + 32,
+            "conditions": self._code_to_text(code),
+            "location": location,
+        }
+
+
+class AnalysisAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__("analysis_agent")
+
+    async def execute(self, inputs):
+        search_summary = inputs.get("search_summary", "")
+        weather = inputs.get("weather", {})
+        print("Analyzing data via OpenAI...")
+        client = _get_openai_client()
+        prompt = (
+            "Given the following search summary and weather data, "
+            "provide a short analysis. "
+            f"Search: {search_summary}. Weather: {weather}."
+        )
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
 
 
 # Your existing workflow function - no changes needed
@@ -42,10 +148,18 @@ async def my_existing_workflow():
     """Existing workflow that you want to accelerate."""
     print("Starting workflow...")
 
+    search_agent = SearchAgent()
+    weather_agent = WeatherAgent()
+    analysis_agent = AnalysisAgent()
+
     # These calls normally run sequentially
-    search_results = await search_data("artificial intelligence advancements")
-    weather_data = await get_weather("New York")
-    analysis = await analyze_data(search_results, weather_data)
+    search = await search_agent.execute(
+        {"query": "artificial intelligence advancements"}
+    )
+    weather = await weather_agent.execute({"location": "New York"})
+    analysis = await analysis_agent.execute(
+        {"search_summary": search["summary"], "weather": weather}
+    )
 
     print(f"Final result: {analysis}")
     return analysis
