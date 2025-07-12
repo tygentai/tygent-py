@@ -36,17 +36,44 @@ class SearchAgent(Agent):
 
     async def execute(self, inputs):
         query = inputs.get("query", "")
+        if not query:
+            raise ValueError("query must be provided")
+
         print(f"Searching Wikipedia for '{query}'...")
-        url = (
-            "https://en.wikipedia.org/api/rest_v1/page/summary/" f"{quote_plus(query)}"
-        )
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            search_params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "format": "json",
+            }
+            async with session.get(
+                "https://en.wikipedia.org/w/api.php", params=search_params
+            ) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise RuntimeError(
+                        f"Wikipedia search error ({resp.status}): {text}"
+                    )
+                search_data = await resp.json()
+                search_results = search_data.get("query", {}).get("search", [])
+                if not search_results:
+                    raise RuntimeError(f"No Wikipedia results for '{query}'")
+                title = search_results[0]["title"]
+
+            summary_url = (
+                "https://en.wikipedia.org/api/rest_v1/page/summary/"
+                f"{quote_plus(title)}"
+            )
+            async with session.get(summary_url) as resp:
                 if resp.status >= 400:
                     text = await resp.text()
                     raise RuntimeError(f"Wikipedia API error ({resp.status}): {text}")
-                data = await resp.json()
-        return {"summary": data.get("extract", ""), "title": data.get("title", query)}
+                summary_data = await resp.json()
+                return {
+                    "summary": summary_data.get("extract", ""),
+                    "title": summary_data.get("title", title),
+                }
 
 
 class WeatherAgent(Agent):
