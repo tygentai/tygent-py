@@ -137,9 +137,15 @@ class WeatherAgent(Agent):
         if not location:
             raise ValueError("location must be provided")
 
-        async with aiohttp.ClientSession() as session:
-            lat, lon = await self._geocode(session, location)
-            weather_raw = await self._fetch_weather(session, lat, lon)
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            try:
+                lat, lon = await self._geocode(session, location)
+                weather_raw = await self._fetch_weather(session, lat, lon)
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                raise RuntimeError(
+                    f"Network error during weather lookup: {exc}"
+                ) from exc
 
         code = int(weather_raw.get("weathercode", 0))
         temp_c = float(weather_raw.get("temperature", 0.0))
