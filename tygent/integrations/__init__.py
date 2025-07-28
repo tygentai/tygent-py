@@ -21,6 +21,11 @@ except ImportError:
     pass
 
 try:
+    from .google_adk import GoogleADKIntegration
+except ImportError:
+    pass
+
+try:
     from .microsoft_ai import MicrosoftAIIntegration
 except ImportError:
     pass
@@ -64,6 +69,7 @@ __all__ = [
     "LangChainIntegration",
     "OpenAIIntegration",
     "GoogleAIIntegration",
+    "GoogleADKIntegration",
     "MicrosoftAIIntegration",
     "SalesforceIntegration",
     "AutoGenIntegration",

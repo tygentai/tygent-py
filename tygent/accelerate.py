@@ -53,6 +53,21 @@ def accelerate(
                     dag, critical = parse_plan(plan)
                     return _FrameworkExecutor(func_or_agent, dag, critical)
 
+        # Google ADK Runner
+        try:
+            from google.adk import Runner as GoogleADKRunner  # type: ignore
+        except Exception:  # pragma: no cover - optional dependency
+            GoogleADKRunner = None  # type: ignore
+        if hasattr(func_or_agent, "run_async") and (
+            GoogleADKRunner is None or isinstance(func_or_agent, GoogleADKRunner)
+        ):
+            try:
+                from .integrations.google_adk import GoogleADKIntegration
+
+                return GoogleADKIntegration(func_or_agent)
+            except Exception:  # pragma: no cover - optional dependency
+                pass
+
         # LangChain Agent
         if "Agent" in class_name or hasattr(func_or_agent, "run"):
             return _accelerate_langchain_agent(func_or_agent)
@@ -143,7 +158,6 @@ async def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) ->
     else:
         # No running event loop, execute and return result synchronously
         return await asyncio.run(func(*args, **kwargs))
-
 
 
 def _optimize_sync_function(func: Callable, args: tuple, kwargs: dict) -> Any:
