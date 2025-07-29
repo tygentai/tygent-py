@@ -59,34 +59,29 @@ def accelerate(
             from google.adk.agents.base_agent import (
                 BaseAgent as GoogleADKAgent,  # type: ignore
             )
-            from google.adk.runners import InMemoryRunner  # type: ignore
         except Exception:  # pragma: no cover - optional dependency
             GoogleADKRunner = None  # type: ignore
             GoogleADKAgent = None  # type: ignore
-            InMemoryRunner = None  # type: ignore
 
         if hasattr(func_or_agent, "run_async"):
             if GoogleADKRunner is not None and isinstance(
                 func_or_agent, GoogleADKRunner
             ):
                 try:
-                    from .integrations.google_adk import GoogleADKIntegration
+                    from .integrations import google_adk
 
-                    return GoogleADKIntegration(func_or_agent)
+                    google_adk.patch()
                 except Exception:  # pragma: no cover - optional dependency
                     pass
-            if (
-                GoogleADKAgent is not None
-                and isinstance(func_or_agent, GoogleADKAgent)
-                and InMemoryRunner is not None
-            ):
+                return func_or_agent
+            if GoogleADKAgent is not None and isinstance(func_or_agent, GoogleADKAgent):
                 try:
-                    from .integrations.google_adk import GoogleADKIntegration
+                    from .integrations import google_adk
 
-                    runner = InMemoryRunner(func_or_agent)
-                    return GoogleADKIntegration(runner)
+                    google_adk.patch()
                 except Exception:  # pragma: no cover - optional dependency
                     pass
+                return func_or_agent
 
         # LangChain Agent
         if "Agent" in class_name or hasattr(func_or_agent, "run"):

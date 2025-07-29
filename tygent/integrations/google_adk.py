@@ -137,11 +137,19 @@ def patch() -> None:
     async def patched(self: Any, *args: Any, **kwargs: Any):
         dag = DAG("google_adk_run")
         node = LLMNode("call", model=self)
-        node.execute = lambda _: original(self, *args, **kwargs)
+
+        async def run(_):
+            events = []
+            async for evt in original(self, *args, **kwargs):
+                events.append(evt)
+            return events
+
+        node.execute = run
         dag.add_node(node)
         scheduler = Scheduler(dag)
         result = await scheduler.execute({})
-        return result["results"]["call"]
+        for event in result["results"]["call"]:
+            yield event
 
     setattr(Runner, "_tygent_run_async", original)
     Runner.run_async = patched

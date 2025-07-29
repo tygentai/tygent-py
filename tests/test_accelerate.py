@@ -85,23 +85,29 @@ class TestAccelerate(unittest.TestCase):
                     content=types.Content(role="model", parts=[types.Part(text=text)]),
                 )
 
-        from tygent.integrations.google_adk import GoogleADKIntegration
-
         runner = InMemoryRunner(EchoAgent())
         runner.session_service.create_session_sync(
             app_name=runner.app_name, user_id="user", session_id="session"
         )
         accel = accelerate(runner)
-        self.assertIsInstance(accel, GoogleADKIntegration)
-
-        accel.add_node("greet", "Hi {name}")
+        self.assertIs(accel, runner)
+        self.assertTrue(hasattr(runner, "_tygent_run_async"))
 
         async def run():
-            result = await accel.execute({"name": "Foo"})
-            return result["results"]["greet"][0].content.parts[0].text
+            events = [
+                e
+                async for e in accel.run_async(
+                    user_id="user",
+                    session_id="session",
+                    new_message=types.Content(
+                        role="user", parts=[types.Part(text="Foo")]
+                    ),
+                )
+            ]
+            return events[0].content.parts[0].text
 
         value = asyncio.run(run())
-        self.assertEqual(value, "Hi Foo")
+        self.assertEqual(value, "Foo")
 
     def test_accelerate_google_adk_agent(self):
         from google.adk.agents.base_agent import BaseAgent
@@ -119,23 +125,33 @@ class TestAccelerate(unittest.TestCase):
                     content=types.Content(role="model", parts=[types.Part(text=text)]),
                 )
 
-        from tygent.integrations.google_adk import GoogleADKIntegration
-
         agent = EchoAgent()
         accel = accelerate(agent)
-        self.assertIsInstance(accel, GoogleADKIntegration)
+        self.assertIs(accel, agent)
+        from google.adk.runners import InMemoryRunner
 
-        accel.runner.session_service.create_session_sync(
-            app_name=accel.runner.app_name, user_id="user", session_id="session"
+        runner = InMemoryRunner(accel)
+        runner.session_service.create_session_sync(
+            app_name=runner.app_name, user_id="user", session_id="session"
         )
-        accel.add_node("greet", "Hi")
+
+        self.assertTrue(hasattr(runner, "_tygent_run_async"))
 
         async def run():
-            result = await accel.execute({})
-            return result["results"]["greet"][0].content.parts[0].text
+            events = [
+                e
+                async for e in runner.run_async(
+                    user_id="user",
+                    session_id="session",
+                    new_message=types.Content(
+                        role="user", parts=[types.Part(text="hi")]
+                    ),
+                )
+            ]
+            return events[0].content.parts[0].text
 
         value = asyncio.run(run())
-        self.assertEqual(value, "Hi")
+        self.assertEqual(value, "hi")
 
 
 if __name__ == "__main__":
