@@ -103,6 +103,40 @@ class TestAccelerate(unittest.TestCase):
         value = asyncio.run(run())
         self.assertEqual(value, "Hi Foo")
 
+    def test_accelerate_google_adk_agent(self):
+        from google.adk.agents.base_agent import BaseAgent
+        from google.adk.events import Event
+        from google.genai import types
+
+        class EchoAgent(BaseAgent):
+            name: str = "echo"
+
+            async def _run_async_impl(self, ctx) -> Any:  # type: ignore[override]
+                text = ctx.user_content.parts[0].text if ctx.user_content else ""
+                yield Event(
+                    invocation_id=ctx.invocation_id,
+                    author=self.name,
+                    content=types.Content(role="model", parts=[types.Part(text=text)]),
+                )
+
+        from tygent.integrations.google_adk import GoogleADKIntegration
+
+        agent = EchoAgent()
+        accel = accelerate(agent)
+        self.assertIsInstance(accel, GoogleADKIntegration)
+
+        accel.runner.session_service.create_session_sync(
+            app_name=accel.runner.app_name, user_id="user", session_id="session"
+        )
+        accel.add_node("greet", "Hi")
+
+        async def run():
+            result = await accel.execute({})
+            return result["results"]["greet"][0].content.parts[0].text
+
+        value = asyncio.run(run())
+        self.assertEqual(value, "Hi")
+
 
 if __name__ == "__main__":
     unittest.main()
