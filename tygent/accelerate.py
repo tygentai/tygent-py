@@ -53,6 +53,11 @@ def accelerate(
                     dag, critical = parse_plan(plan)
                     return _FrameworkExecutor(func_or_agent, dag, critical)
 
+        # ADK LLM Agent - currently returned unchanged
+        module_name = func_or_agent.__class__.__module__
+        if module_name.startswith("google.adk"):
+            return _accelerate_adk_agent(func_or_agent)
+
         # LangChain Agent
         if "Agent" in class_name or hasattr(func_or_agent, "run"):
             return _accelerate_langchain_agent(func_or_agent)
@@ -145,7 +150,6 @@ async def _optimize_async_function(func: Callable, args: tuple, kwargs: dict) ->
         return await asyncio.run(func(*args, **kwargs))
 
 
-
 def _optimize_sync_function(func: Callable, args: tuple, kwargs: dict) -> Any:
     """Optimize sync function execution."""
 
@@ -222,3 +226,19 @@ def _accelerate_llamaindex(index_or_engine: Any) -> Any:
             return getattr(self.original_component, name)
 
     return AcceleratedLlamaIndex(index_or_engine)
+
+
+def _accelerate_adk_agent(agent: Any) -> Any:
+    """Return ADK agents unchanged but maintain interface consistency."""
+
+    class AcceleratedADKAgent:
+        def __init__(self, original_agent):
+            self.original_agent = original_agent
+
+        async def run_async(self, *args, **kwargs):
+            return await self.original_agent.run_async(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self.original_agent, name)
+
+    return AcceleratedADKAgent(agent)
