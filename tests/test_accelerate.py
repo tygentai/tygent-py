@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from typing import Any
 
 from tygent import accelerate
 
@@ -66,6 +67,91 @@ class TestAccelerate(unittest.TestCase):
 
         value = asyncio.run(run())
         self.assertEqual(value, 6)
+
+    def test_accelerate_google_adk_runner(self):
+        from google.adk.agents.base_agent import BaseAgent
+        from google.adk.events import Event
+        from google.adk.runners import InMemoryRunner
+        from google.genai import types
+
+        class EchoAgent(BaseAgent):
+            name: str = "echo"
+
+            async def _run_async_impl(self, ctx) -> Any:  # type: ignore[override]
+                text = ctx.user_content.parts[0].text if ctx.user_content else ""
+                yield Event(
+                    invocation_id=ctx.invocation_id,
+                    author=self.name,
+                    content=types.Content(role="model", parts=[types.Part(text=text)]),
+                )
+
+        runner = InMemoryRunner(EchoAgent())
+        runner.session_service.create_session_sync(
+            app_name=runner.app_name, user_id="user", session_id="session"
+        )
+        accel = accelerate(runner)
+        self.assertIs(accel, runner)
+        self.assertTrue(hasattr(runner, "_tygent_run_async"))
+
+        async def run():
+            events = [
+                e
+                async for e in accel.run_async(
+                    user_id="user",
+                    session_id="session",
+                    new_message=types.Content(
+                        role="user", parts=[types.Part(text="Foo")]
+                    ),
+                )
+            ]
+            return events[0].content.parts[0].text
+
+        value = asyncio.run(run())
+        self.assertEqual(value, "Foo")
+
+    def test_accelerate_google_adk_agent(self):
+        from google.adk.agents.base_agent import BaseAgent
+        from google.adk.events import Event
+        from google.genai import types
+
+        class EchoAgent(BaseAgent):
+            name: str = "echo"
+
+            async def _run_async_impl(self, ctx) -> Any:  # type: ignore[override]
+                text = ctx.user_content.parts[0].text if ctx.user_content else ""
+                yield Event(
+                    invocation_id=ctx.invocation_id,
+                    author=self.name,
+                    content=types.Content(role="model", parts=[types.Part(text=text)]),
+                )
+
+        agent = EchoAgent()
+        accel = accelerate(agent)
+        self.assertIs(accel, agent)
+        from google.adk.runners import InMemoryRunner
+
+        runner = InMemoryRunner(accel)
+        runner.session_service.create_session_sync(
+            app_name=runner.app_name, user_id="user", session_id="session"
+        )
+
+        self.assertTrue(hasattr(runner, "_tygent_run_async"))
+
+        async def run():
+            events = [
+                e
+                async for e in runner.run_async(
+                    user_id="user",
+                    session_id="session",
+                    new_message=types.Content(
+                        role="user", parts=[types.Part(text="hi")]
+                    ),
+                )
+            ]
+            return events[0].content.parts[0].text
+
+        value = asyncio.run(run())
+        self.assertEqual(value, "hi")
 
 
 if __name__ == "__main__":
