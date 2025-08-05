@@ -136,7 +136,8 @@ def patch() -> None:
 
     async def patched(self: Any, *args: Any, **kwargs: Any):
         dag = DAG("google_adk_run")
-        node = LLMNode("call", model=self)
+        node_name = getattr(getattr(self, "agent", None), "name", "call")
+        node = LLMNode(node_name, model=self)
 
         async def run(_):
             events = []
@@ -149,7 +150,7 @@ def patch() -> None:
         hooks = getattr(self, "_tygent_hooks", None)
         scheduler = Scheduler(dag, hooks=hooks)
         result = await scheduler.execute({})
-        for event in result["results"]["call"]:
+        for event in result["results"][node_name]:
             yield event
 
     setattr(Runner, "_tygent_run_async", original)
