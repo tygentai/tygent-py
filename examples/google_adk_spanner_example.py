@@ -20,7 +20,7 @@ load_dotenv()
 try:
     from google import genai
     from google.adk.agents.llm_agent import LlmAgent
-    from google.adk.runners import Runner
+    from google.adk.runners import InMemoryRunner
     from google.genai import types
 except ImportError:
     print("This example requires the google-adk and google-genai packages.")
@@ -54,7 +54,7 @@ tag = LlmAgent(
 )
 
 # Create a runner and session
-runner = Runner(tag)
+runner = InMemoryRunner(tag)
 runner.session_service.create_session_sync(
     app_name=runner.app_name, user_id="user", session_id="session"
 )
