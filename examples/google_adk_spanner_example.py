@@ -28,7 +28,7 @@ except ImportError:
     print("Install them with: pip install google-adk google-genai")
     raise
 
-from tygent.integrations.google_adk import patch
+from tygent import accelerate
 
 # Ensure required environment variables for Vertex AI are set
 required_env_vars = [
@@ -73,7 +73,7 @@ async def run_without_tygent():
 
 
 async def run_with_tygent():
-    patch()  # Patch Runner.run_async to use Tygent scheduler
+    accelerate(runner)  # Enable Tygent acceleration for the runner
     content = types.Content(role="user", parts=[types.Part(text=QUERY)])
     async for _ in runner.run_async(
         user_id="user", session_id="session", new_message=content
