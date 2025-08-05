@@ -3,7 +3,8 @@
 This script creates a simple Google ADK agent that answers the query:
 "Describe the Spanner paper by Google assuming I am a 10th grader, a junior undergraduate, and a first year graduate student."
 It then executes the query twice – once using standard execution and once
-with Tygent acceleration applied.
+with Tygent acceleration applied – printing only the execution times and
+overall speedup.
 """
 
 import asyncio
@@ -63,52 +64,39 @@ QUERY = (
 )
 
 
-def format_events(events):
-    if not events:
-        return "No response"
-    event = events[-1]
-    parts = getattr(event.content, "parts", [])
-    if parts and hasattr(parts[0], "text"):
-        return parts[0].text
-    return str(event)
-
-
 async def run_without_tygent():
     content = types.Content(role="user", parts=[types.Part(text=QUERY)])
-    events = []
-    async for event in runner.run_async(
+    async for _ in runner.run_async(
         user_id="user", session_id="session", new_message=content
     ):
-        events.append(event)
-    return events
+        pass
 
 
 async def run_with_tygent():
     patch()  # Patch Runner.run_async to use Tygent scheduler
     content = types.Content(role="user", parts=[types.Part(text=QUERY)])
-    events = []
-    async for event in runner.run_async(
+    async for _ in runner.run_async(
         user_id="user", session_id="session", new_message=content
     ):
-        events.append(event)
-    return events
+        pass
 
 
 async def main():
     await runner.session_service.create_session(
         app_name=runner.app_name, user_id="user", session_id="session"
     )
-    print("=== Without Tygent Acceleration ===")
     start = time.time()
-    events = await run_without_tygent()
-    print(format_events(events))
-    print(f"Execution time: {time.time() - start:.2f}s\n")
+    await run_without_tygent()
+    without_tygent = time.time() - start
 
-    print("=== With Tygent Acceleration ===")
     start = time.time()
-    events = await run_with_tygent()
-    print(format_events(events))
-    print(f"Execution time: {time.time() - start:.2f}s")
+    await run_with_tygent()
+    with_tygent = time.time() - start
+
+    print(f"Without Tygent: {without_tygent:.2f}s")
+    print(f"With Tygent: {with_tygent:.2f}s")
+    if with_tygent:
+        print(f"Acceleration: {without_tygent / with_tygent:.2f}x")
 
 
 if __name__ == "__main__":
