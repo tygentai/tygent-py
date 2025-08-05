@@ -55,9 +55,6 @@ tag = LlmAgent(
     ),
 )
 
-# Create a runner
-runner = InMemoryRunner(tag)
-
 QUERY = (
     "Describe the Spanner paper by Google assuming I am a 10th grader, "
     "a junior undergraduate, and a first year graduate student."
@@ -65,6 +62,10 @@ QUERY = (
 
 
 async def run_without_tygent():
+    runner = InMemoryRunner(tag)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id="user", session_id="session"
+    )
     content = types.Content(role="user", parts=[types.Part(text=QUERY)])
     async for _ in runner.run_async(
         user_id="user", session_id="session", new_message=content
@@ -73,7 +74,11 @@ async def run_without_tygent():
 
 
 async def run_with_tygent():
-    accelerate(runner)  # Enable Tygent acceleration for the runner
+    runner = InMemoryRunner(tag)
+    accelerate(runner)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id="user", session_id="session"
+    )
     content = types.Content(role="user", parts=[types.Part(text=QUERY)])
     async for _ in runner.run_async(
         user_id="user", session_id="session", new_message=content
@@ -82,9 +87,6 @@ async def run_with_tygent():
 
 
 async def main():
-    await runner.session_service.create_session(
-        app_name=runner.app_name, user_id="user", session_id="session"
-    )
     start = time.time()
     await run_without_tygent()
     without_tygent = time.time() - start
