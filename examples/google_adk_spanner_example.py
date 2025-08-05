@@ -10,6 +10,7 @@ overall speedup.
 import asyncio
 import os
 import time
+from typing import Dict
 
 from dotenv import load_dotenv
 
@@ -29,6 +30,18 @@ except ImportError:
     raise
 
 from tygent import accelerate
+
+# Track per-node execution times when running with Tygent
+NODE_TIMINGS: Dict[str, float] = {}
+
+
+async def timing_hook(stage, node, inputs, output, scheduler):
+    now = time.time()
+    if stage == "before_execute":
+        NODE_TIMINGS[node.name] = now
+    elif stage == "after_execute":
+        NODE_TIMINGS[node.name] = now - NODE_TIMINGS[node.name]
+
 
 # Ensure required environment variables for Vertex AI are set
 required_env_vars = [
@@ -77,6 +90,7 @@ async def main():
     # Create runners up front so initialization time isn't measured
     baseline_runner = InMemoryRunner(tag)
     accelerated_runner = InMemoryRunner(tag)
+    accelerated_runner._tygent_hooks = [timing_hook]
     accelerate(accelerated_runner)
 
     start = time.time()
@@ -91,6 +105,10 @@ async def main():
     print(f"With Tygent: {with_tygent:.2f}s")
     if with_tygent:
         print(f"Acceleration: {without_tygent / with_tygent:.2f}x")
+    if NODE_TIMINGS:
+        print("Tygent node timings:")
+        for node, duration in NODE_TIMINGS.items():
+            print(f"  {node}: {duration:.2f}s")
 
 
 if __name__ == "__main__":

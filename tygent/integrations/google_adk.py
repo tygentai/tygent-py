@@ -146,7 +146,8 @@ def patch() -> None:
 
         node.execute = run
         dag.add_node(node)
-        scheduler = Scheduler(dag)
+        hooks = getattr(self, "_tygent_hooks", None)
+        scheduler = Scheduler(dag, hooks=hooks)
         result = await scheduler.execute({})
         for event in result["results"]["call"]:
             yield event
