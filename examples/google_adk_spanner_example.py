@@ -12,7 +12,9 @@ import time
 
 from dotenv import load_dotenv
 
-# Load environment variables (GOOGLE_API_KEY) from a .env file if present
+# Load environment variables from a .env file if present. The file should
+# include settings like GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and
+# GOOGLE_APPLICATION_CREDENTIALS as shown in the ADK samples repository.
 load_dotenv()
 
 try:
@@ -27,14 +29,19 @@ except ImportError:
 
 from tygent.integrations.google_adk import patch
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if not API_KEY:
-    print("GOOGLE_API_KEY environment variable not set.")
-    print("Get an API key from https://makersuite.google.com/app/apikey")
+# Ensure required environment variables for Vertex AI are set
+required_env_vars = [
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+]
+missing = [var for var in required_env_vars if not os.getenv(var)]
+if missing:
+    print("Missing required environment variables: " + ", ".join(missing))
     raise SystemExit
 
-# Configure Google GenAI client
-client = genai.Client(api_key=API_KEY)
+# Configure Google GenAI client using application default credentials
+client = genai.Client()
 
 # Create a simple LLM agent capable of explaining topics at different levels
 tag = LlmAgent(
