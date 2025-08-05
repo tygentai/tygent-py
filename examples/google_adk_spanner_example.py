@@ -44,20 +44,18 @@ if missing:
 client = genai.Client()
 
 # Create a simple LLM agent capable of explaining topics at different levels
+model_name = os.getenv("GOOGLE_GENAI_MODEL", "gemini-1.0-pro")
 tag = LlmAgent(
     name="spanner_explainer",
-    model="gemini-1.5-flash",
+    model=model_name,
     instruction=(
         "You explain technical topics for different levels of expertise."
         " Provide clear and concise responses."
     ),
 )
 
-# Create a runner and session
+# Create a runner
 runner = InMemoryRunner(tag)
-runner.session_service.create_session_sync(
-    app_name=runner.app_name, user_id="user", session_id="session"
-)
 
 QUERY = (
     "Describe the Spanner paper by Google assuming I am a 10th grader, "
@@ -97,6 +95,9 @@ async def run_with_tygent():
 
 
 async def main():
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id="user", session_id="session"
+    )
     print("=== Without Tygent Acceleration ===")
     start = time.time()
     events = await run_without_tygent()
