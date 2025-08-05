@@ -44,7 +44,7 @@ if missing:
 client = genai.Client()
 
 # Create a simple LLM agent capable of explaining topics at different levels
-model_name = os.getenv("GOOGLE_GENAI_MODEL", "gemini-1.0-pro")
+model_name = os.getenv("GOOGLE_GENAI_MODEL", "gemini-2.5-pro")
 tag = LlmAgent(
     name="spanner_explainer",
     model=model_name,
