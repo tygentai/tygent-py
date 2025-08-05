@@ -61,21 +61,8 @@ QUERY = (
 )
 
 
-async def run_without_tygent():
-    runner = InMemoryRunner(tag)
-    await runner.session_service.create_session(
-        app_name=runner.app_name, user_id="user", session_id="session"
-    )
-    content = types.Content(role="user", parts=[types.Part(text=QUERY)])
-    async for _ in runner.run_async(
-        user_id="user", session_id="session", new_message=content
-    ):
-        pass
-
-
-async def run_with_tygent():
-    runner = InMemoryRunner(tag)
-    accelerate(runner)
+async def run_query(runner: InMemoryRunner) -> None:
+    """Execute the query with the provided runner."""
     await runner.session_service.create_session(
         app_name=runner.app_name, user_id="user", session_id="session"
     )
@@ -87,12 +74,17 @@ async def run_with_tygent():
 
 
 async def main():
+    # Create runners up front so initialization time isn't measured
+    baseline_runner = InMemoryRunner(tag)
+    accelerated_runner = InMemoryRunner(tag)
+    accelerate(accelerated_runner)
+
     start = time.time()
-    await run_without_tygent()
+    await run_query(baseline_runner)
     without_tygent = time.time() - start
 
     start = time.time()
-    await run_with_tygent()
+    await run_query(accelerated_runner)
     with_tygent = time.time() - start
 
     print(f"Without Tygent: {without_tygent:.2f}s")
