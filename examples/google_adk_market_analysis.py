@@ -17,12 +17,11 @@ import asyncio
 import os
 from typing import Any, Dict
 
-try:  # pragma: no cover - optional dependency
-    from dotenv import load_dotenv
+from dotenv import load_dotenv
 
-    load_dotenv()
-except Exception:  # pragma: no cover - optional dependency
-    pass
+from tygent.accelerate import accelerate
+
+load_dotenv()
 
 try:  # pragma: no cover - optional dependency
     import google.genai as genai
@@ -197,16 +196,33 @@ def _extract(events: Any) -> str:
 
 
 async def main() -> None:
-    """Execute the market analysis DAG."""
+    """Execute the market analysis DAG with and without acceleration."""
 
     print("=== Google ADK Market Intelligence Example ===\n")
     integration = await _create_integration()
     _build_dag(integration)
 
+    print("=== Standard Execution ===")
+    start = asyncio.get_event_loop().time()
     results: Dict[str, Any] = await integration.execute({})
+    standard_time = asyncio.get_event_loop().time() - start
     summary = _extract(results["executive_summary"])
     print("Executive Summary:\n")
     print(summary[:500])
+    print(f"\nStandard execution time: {standard_time:.2f} seconds\n")
+
+    print("=== Accelerated Execution ===")
+    accelerate(integration.runner)
+    start = asyncio.get_event_loop().time()
+    accel_results: Dict[str, Any] = await integration.execute({})
+    accel_time = asyncio.get_event_loop().time() - start
+    accel_summary = _extract(accel_results["executive_summary"])
+    print("Executive Summary:\n")
+    print(accel_summary[:500])
+    print(f"\nAccelerated execution time: {accel_time:.2f} seconds")
+    if standard_time > accel_time:
+        improvement = ((standard_time - accel_time) / standard_time) * 100
+        print(f"Performance improvement: {improvement:.1f}% faster")
 
 
 if __name__ == "__main__":
