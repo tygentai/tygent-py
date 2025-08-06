@@ -1,8 +1,10 @@
 """Example of using Tygent with Google ADK for comprehensive market analysis.
 
 Requires the `google-adk` and `google-genai` packages. Install them with:
-`pip install google-adk google-genai` and set the ``GOOGLE_API_KEY``
-environment variable.
+`pip install google-adk google-genai` and configure authentication using either
+an API key (`GOOGLE_API_KEY`) or Google Cloud service account credentials
+(`GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, and
+`GOOGLE_CLOUD_LOCATION`).
 
 This script builds a directed acyclic graph (DAG) representing a multi-step
 market intelligence research workflow. It uses Google's Agent Development Kit
@@ -33,12 +35,11 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
-if not API_KEY:
-    print("GOOGLE_API_KEY environment variable not set.")
-    print("Get an API key from https://aistudio.google.com/app/apikey")
-    raise SystemExit(1)
-
-genai.configure(api_key=API_KEY)
+if API_KEY:
+    genai.configure(api_key=API_KEY)
+else:
+    # Fall back to default credentials for Vertex AI / service account auth
+    genai.configure()
 
 
 INSTRUCTION = (
