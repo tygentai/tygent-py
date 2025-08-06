@@ -17,9 +17,12 @@ import asyncio
 import os
 from typing import Any, Dict
 
-from dotenv import load_dotenv
+try:  # pragma: no cover - optional dependency
+    from dotenv import load_dotenv
 
-load_dotenv()
+    load_dotenv()
+except Exception:  # pragma: no cover - optional dependency
+    pass
 
 try:  # pragma: no cover - optional dependency
     import google.genai as genai
