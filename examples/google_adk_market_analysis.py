@@ -17,14 +17,16 @@ import asyncio
 import os
 from typing import Any, Dict
 
-from dotenv import load_dotenv
+try:  # pragma: no cover - optional dependency
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:  # pragma: no cover - optional dependency
+    pass
 
 from tygent.accelerate import accelerate
 
-load_dotenv()
-
 try:  # pragma: no cover - optional dependency
-    import google.genai as genai
     from google.adk.agents.llm_agent import LlmAgent
     from google.adk.runners import InMemoryRunner
     from google.genai import types
@@ -36,12 +38,11 @@ except Exception:  # pragma: no cover - optional dependency
     raise SystemExit(1)
 
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if API_KEY:
-    genai.configure(api_key=API_KEY)
-else:
-    # Fall back to default credentials for Vertex AI / service account auth
-    genai.configure()
+if not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    print(
+        "Set GOOGLE_API_KEY or GOOGLE_APPLICATION_CREDENTIALS before running this example."
+    )
+    raise SystemExit(1)
 
 
 INSTRUCTION = (
@@ -55,10 +56,9 @@ INSTRUCTION = (
 async def _create_integration() -> GoogleADKIntegration:
     """Set up the Google ADK integration with an LLM agent."""
 
-    model = genai.GenerativeModel("gemini-1.5-flash")
     agent = LlmAgent(
         name="analyst",
-        model=model,
+        model="gemini-1.5-flash",
         instruction=INSTRUCTION,
         generate_content_config=types.GenerateContentConfig(
             temperature=0.7, max_output_tokens=150
