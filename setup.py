@@ -29,5 +29,6 @@ setup(
     install_requires=[
         "openai>=1.0.0",
         "aiohttp>=3.8",
+        "python-dotenv",
     ],
 )

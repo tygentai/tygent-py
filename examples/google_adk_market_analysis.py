@@ -10,12 +10,9 @@ includes validation and synthesis stages before producing an executive summary.
 import asyncio
 from typing import Any, Dict
 
-try:  # pragma: no cover - optional dependency
-    from dotenv import load_dotenv
+from dotenv import load_dotenv
 
-    load_dotenv()
-except Exception:  # pragma: no cover - optional dependency
-    pass
+load_dotenv()
 
 try:  # pragma: no cover - optional dependency
     from google.adk.agents.base_agent import BaseAgent
