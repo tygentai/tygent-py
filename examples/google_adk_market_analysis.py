@@ -46,11 +46,11 @@ class EchoAgent(BaseAgent):
         )
 
 
-def _create_integration() -> GoogleADKIntegration:
+async def _create_integration() -> GoogleADKIntegration:
     """Set up the Google ADK integration with an in-memory runner."""
 
     runner = InMemoryRunner(EchoAgent())
-    runner.session_service.create_session_sync(
+    await runner.session_service.create_session(
         app_name=runner.app_name, user_id="user", session_id="session"
     )
     integration = GoogleADKIntegration(runner)
@@ -187,7 +187,7 @@ async def main() -> None:
     """Execute the market analysis DAG."""
 
     print("=== Google ADK Market Intelligence Example ===\n")
-    integration = _create_integration()
+    integration = await _create_integration()
     _build_dag(integration)
 
     results: Dict[str, Any] = await integration.execute({})

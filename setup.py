@@ -30,7 +30,7 @@ setup(
         "openai>=1.0.0",
         "aiohttp>=3.8",
         "python-dotenv",
-        "google-adk",
-        "google-genai",
+        "google-adk; python_version >= '3.9'",
+        "google-genai; python_version >= '3.9'",
     ],
 )

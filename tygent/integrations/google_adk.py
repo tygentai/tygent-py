@@ -45,7 +45,8 @@ class GoogleADKNode(LLMNode):
 
     async def execute(self, inputs: Dict[str, Any]) -> Any:  # noqa: D401
         """Execute the wrapped runner."""
-        prompt = self._format_prompt(inputs, {})
+        # All inputs come from dependency outputs, so format them as variables
+        prompt = self._format_prompt({}, inputs)
         if genai_types is not None:
             content = genai_types.Content(
                 role="user",
@@ -62,7 +63,8 @@ class GoogleADKNode(LLMNode):
             **self.kwargs,
         ):
             events.append(event)
-        return events
+        # Wrap the result so dependency names map to unique keys
+        return {self.name: events}
 
     def _format_prompt(
         self, inputs: Dict[str, Any], node_outputs: Dict[str, Any]
@@ -124,7 +126,15 @@ class GoogleADKIntegration:
             self.scheduler.priority_nodes = options["priorityNodes"]
 
     async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.scheduler.execute(inputs)
+        """Execute the DAG and return flattened node outputs."""
+        raw = await self.scheduler.execute(inputs)
+        outputs: Dict[str, Any] = {}
+        for name, value in raw.get("results", {}).items():
+            if isinstance(value, dict) and name in value:
+                outputs[name] = value[name]
+            else:
+                outputs[name] = value
+        return outputs
 
 
 def patch() -> None:
