@@ -1,7 +1,8 @@
 """Example of using Tygent with Google ADK for comprehensive market analysis.
 
 Requires the `google-adk` and `google-genai` packages. Install them with:
-`pip install google-adk google-genai`.
+`pip install google-adk google-genai` and set the ``GOOGLE_API_KEY``
+environment variable.
 
 This script builds a directed acyclic graph (DAG) representing a multi-step
 market intelligence research workflow. It uses Google's Agent Development Kit
@@ -11,6 +12,7 @@ includes validation and synthesis stages before producing an executive summary.
 """
 
 import asyncio
+import os
 from typing import Any, Dict
 
 from dotenv import load_dotenv
@@ -18,8 +20,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:  # pragma: no cover - optional dependency
-    from google.adk.agents.base_agent import BaseAgent
-    from google.adk.events import Event
+    import google.genai as genai
+    from google.adk.agents.llm_agent import LlmAgent
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
@@ -30,26 +32,36 @@ except Exception:  # pragma: no cover - optional dependency
     raise SystemExit(1)
 
 
-class EchoAgent(BaseAgent):
-    """Minimal agent that echoes the user's message."""
+API_KEY = os.getenv("GOOGLE_API_KEY")
+if not API_KEY:
+    print("GOOGLE_API_KEY environment variable not set.")
+    print("Get an API key from https://aistudio.google.com/app/apikey")
+    raise SystemExit(1)
 
-    name: str = "echo"
+genai.configure(api_key=API_KEY)
 
-    async def _run_async_impl(self, ctx) -> Any:  # type: ignore[override]
-        text = ""
-        if ctx.user_content and ctx.user_content.parts:
-            text = ctx.user_content.parts[0].text
-        yield Event(
-            invocation_id=ctx.invocation_id,
-            author=self.name,
-            content=types.Content(role="model", parts=[types.Part(text=text)]),
-        )
+
+INSTRUCTION = (
+    "You are a strategic analyst preparing a comprehensive market intelligence "
+    "report for executive leadership. Research emerging trends, competitive "
+    "threats, customer behavior patterns, and market opportunities to guide "
+    "major business decisions and investment strategies."
+)
 
 
 async def _create_integration() -> GoogleADKIntegration:
-    """Set up the Google ADK integration with an in-memory runner."""
+    """Set up the Google ADK integration with an LLM agent."""
 
-    runner = InMemoryRunner(EchoAgent())
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    agent = LlmAgent(
+        name="analyst",
+        model=model,
+        instruction=INSTRUCTION,
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.7, max_output_tokens=150
+        ),
+    )
+    runner = InMemoryRunner(agent)
     await runner.session_service.create_session(
         app_name=runner.app_name, user_id="user", session_id="session"
     )
@@ -59,12 +71,9 @@ async def _create_integration() -> GoogleADKIntegration:
 
 
 BASE_PROMPT = (
-    "You are a strategic analyst preparing a comprehensive market intelligence report "
-    "for executive leadership. Research emerging trends, competitive threats, customer "
-    "behavior patterns, and market opportunities to guide major business decisions and "
-    "investment strategies.\n\n{task}: Analyze market opportunities, competitive landscape, "
-    "customer trends, and regulatory environment across multiple industries to inform "
-    "strategic business decisions."
+    "{task}: Analyze market opportunities, competitive landscape, customer trends, "
+    "and regulatory environment across multiple industries to inform strategic "
+    "business decisions."
 )
 
 

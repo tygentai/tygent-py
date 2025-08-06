@@ -10,6 +10,7 @@ EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 SKIP_REQUIREMENTS = {
     "google_ai_example.py": "GOOGLE_API_KEY",
+    "google_adk_market_analysis.py": "GOOGLE_API_KEY",
     "microsoft_ai_example.py": "AZURE_OPENAI_KEY",
     "salesforce_example.py": "SALESFORCE_USERNAME",
 }
