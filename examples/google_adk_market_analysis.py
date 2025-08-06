@@ -1,5 +1,8 @@
 """Example of using Tygent with Google ADK for comprehensive market analysis.
 
+Requires the `google-adk` and `google-genai` packages. Install them with:
+`pip install google-adk google-genai`.
+
 This script builds a directed acyclic graph (DAG) representing a multi-step
 market intelligence research workflow. It uses Google's Agent Development Kit
 (ADK) with an in-memory runner to execute each node in the workflow. The DAG
