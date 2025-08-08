@@ -16,8 +16,11 @@ summary.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency
     from dotenv import load_dotenv
@@ -182,15 +185,30 @@ def _extract(events: List[Any]) -> str:
     return str(event)
 
 
-async def _call_runner(runner: InMemoryRunner, prompt: str) -> str:
+async def _call_runner(runner: InMemoryRunner, name: str, prompt: str) -> str:
     events: List[Any] = []
+    usage = None
     async for event in runner.run_async(
         user_id="user",
         session_id="session",
         new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
     ):
         events.append(event)
-    return _extract(events)
+        if usage is None:
+            usage = getattr(event, "usage_metadata", None)
+    text = _extract(events)
+    if usage is not None:
+        prompt_tokens = getattr(usage, "prompt_token_count", None)
+        response_tokens = getattr(usage, "candidates_token_count", None)
+        logger.info(
+            "%s: %s input tokens, %s output tokens",
+            name,
+            prompt_tokens,
+            response_tokens,
+        )
+    else:
+        logger.info("%s: token counts unavailable", name)
+    return text
 
 
 async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
@@ -206,7 +224,7 @@ async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
         ]
         tasks = {
             name: asyncio.create_task(
-                _call_runner(runner, PLAN[name]["prompt"].format(**results))
+                _call_runner(runner, name, PLAN[name]["prompt"].format(**results))
             )
             for name in ready
         }
@@ -218,6 +236,7 @@ async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
 
 async def main() -> None:
     """Execute the market analysis DAG with and without acceleration."""
+    logging.basicConfig(level=logging.INFO)
 
     print("=== Google ADK Market Intelligence Example ===\n")
     runner = await _create_runner()
