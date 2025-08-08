@@ -1,21 +1,23 @@
-"""Example of using Tygent with Google ADK for comprehensive market analysis.
+"""Example of using Google ADK for comprehensive market analysis.
 
-Requires the `google-adk` and `google-genai` packages. Install them with:
-`pip install google-adk google-genai` and configure authentication using either
-an API key (`GOOGLE_API_KEY`) or Google Cloud service account credentials
-(`GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, and
-`GOOGLE_CLOUD_LOCATION`).
+Requires the ``google-adk`` and ``google-genai`` packages. Install them with:
+``pip install google-adk google-genai`` and configure authentication using
+either an API key (``GOOGLE_API_KEY``) or Google Cloud service account
+credentials (``GOOGLE_APPLICATION_CREDENTIALS``, ``GOOGLE_CLOUD_PROJECT``, and
+``GOOGLE_CLOUD_LOCATION``).
 
 This script builds a directed acyclic graph (DAG) representing a multi-step
-market intelligence research workflow. It uses Google's Agent Development Kit
-(ADK) with an in-memory runner to execute each node in the workflow. The DAG
-structure mirrors the prompt-based plan described in the documentation and
-includes validation and synthesis stages before producing an executive summary.
+market intelligence research workflow using Google's Agent Development Kit
+(ADK). The DAG mirrors the prompt-based plan described in the documentation and
+includes validation and synthesis stages before producing an executive
+summary.
 """
+
+from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 try:  # pragma: no cover - optional dependency
     from dotenv import load_dotenv
@@ -30,13 +32,10 @@ try:  # pragma: no cover - optional dependency
     from google.adk.agents.llm_agent import LlmAgent
     from google.adk.runners import InMemoryRunner
     from google.genai import types
-
-    from tygent.integrations.google_adk import GoogleADKIntegration
 except Exception:  # pragma: no cover - optional dependency
     print("This example requires the google-adk and google-genai packages.")
     print("Install them with: pip install google-adk google-genai")
     raise SystemExit(1)
-
 
 if not os.getenv("GOOGLE_API_KEY") and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
     print(
@@ -52,10 +51,109 @@ INSTRUCTION = (
     "major business decisions and investment strategies."
 )
 
+BASE_PROMPT = (
+    "{task}: Analyze market opportunities, competitive landscape, customer trends, "
+    "and regulatory environment across multiple industries to inform strategic "
+    "business decisions."
+)
 
-async def _create_integration() -> GoogleADKIntegration:
-    """Set up the Google ADK integration with an LLM agent."""
+PLAN: Dict[str, Dict[str, Any]] = {
+    "industry_analysis": {
+        "prompt": BASE_PROMPT.format(
+            task="Analyze industry trends and market dynamics"
+        ),
+        "deps": [],
+    },
+    "competitive_intelligence": {
+        "prompt": BASE_PROMPT.format(
+            task="Research competitor strategies and positioning"
+        ),
+        "deps": [],
+    },
+    "customer_research": {
+        "prompt": BASE_PROMPT.format(task="Analyze customer behavior and preferences"),
+        "deps": [],
+    },
+    "regulatory_review": {
+        "prompt": BASE_PROMPT.format(
+            task="Review regulatory environment and compliance requirements"
+        ),
+        "deps": [],
+    },
+    "trend_analysis": {
+        "prompt": BASE_PROMPT.format(
+            task="Identify emerging market trends and opportunities"
+        ),
+        "deps": [],
+    },
+    "expert_insights": {
+        "prompt": BASE_PROMPT.format(
+            task="Gather expert opinions and industry analysis"
+        ),
+        "deps": [],
+    },
+    "market_data": {
+        "prompt": BASE_PROMPT.format(
+            task="Process market size, growth, and forecast data"
+        ),
+        "deps": [],
+    },
+    "risk_assessment": {
+        "prompt": BASE_PROMPT.format(task="Assess market risks and business threats"),
+        "deps": [],
+    },
+    "cross_validation": {
+        "prompt": BASE_PROMPT.format(
+            task="Cross-validate findings across research sources"
+        )
+        + " Sources: {industry_analysis}, {competitive_intelligence}, {customer_research}, {regulatory_review}",
+        "deps": [
+            "industry_analysis",
+            "competitive_intelligence",
+            "customer_research",
+            "regulatory_review",
+        ],
+    },
+    "fact_verification": {
+        "prompt": BASE_PROMPT.format(task="Verify strategic insights and market claims")
+        + " Inputs: {trend_analysis}, {expert_insights}, {market_data}, {risk_assessment}",
+        "deps": ["trend_analysis", "expert_insights", "market_data", "risk_assessment"],
+    },
+    "credibility_assessment": {
+        "prompt": BASE_PROMPT.format(task="Assess source credibility")
+        + " References: {cross_validation}, {fact_verification}",
+        "deps": ["cross_validation", "fact_verification"],
+    },
+    "quality_check": {
+        "prompt": BASE_PROMPT.format(task="Quality control and data validation")
+        + " Review: {credibility_assessment}",
+        "deps": ["credibility_assessment"],
+    },
+    "strategic_analysis": {
+        "prompt": BASE_PROMPT.format(
+            task="Synthesize market intelligence into strategic insights"
+        )
+        + " Data: {quality_check}",
+        "deps": ["quality_check"],
+    },
+    "opportunity_identification": {
+        "prompt": BASE_PROMPT.format(
+            task="Identify strategic opportunities and recommendations"
+        )
+        + " Data: {quality_check}",
+        "deps": ["quality_check"],
+    },
+    "executive_summary": {
+        "prompt": BASE_PROMPT.format(
+            task="Compile executive market intelligence report"
+        )
+        + " Inputs: {strategic_analysis}, {opportunity_identification}",
+        "deps": ["strategic_analysis", "opportunity_identification"],
+    },
+}
 
+
+async def _create_runner() -> InMemoryRunner:
     agent = LlmAgent(
         name="analyst",
         model="gemini-1.5-flash",
@@ -68,121 +166,10 @@ async def _create_integration() -> GoogleADKIntegration:
     await runner.session_service.create_session(
         app_name=runner.app_name, user_id="user", session_id="session"
     )
-    integration = GoogleADKIntegration(runner)
-    integration.optimize({"maxParallelCalls": 8})
-    return integration
+    return runner
 
 
-BASE_PROMPT = (
-    "{task}: Analyze market opportunities, competitive landscape, customer trends, "
-    "and regulatory environment across multiple industries to inform strategic "
-    "business decisions."
-)
-
-
-def _build_dag(integration: GoogleADKIntegration) -> None:
-    """Construct the DAG described in the market analysis prompt."""
-
-    # Parallel Layer 1
-    integration.add_node(
-        "industry_analysis",
-        BASE_PROMPT.format(task="Analyze industry trends and market dynamics"),
-    )
-    integration.add_node(
-        "competitive_intelligence",
-        BASE_PROMPT.format(task="Research competitor strategies and positioning"),
-    )
-    integration.add_node(
-        "customer_research",
-        BASE_PROMPT.format(task="Analyze customer behavior and preferences"),
-    )
-    integration.add_node(
-        "regulatory_review",
-        BASE_PROMPT.format(
-            task="Review regulatory environment and compliance requirements"
-        ),
-    )
-    integration.add_node(
-        "trend_analysis",
-        BASE_PROMPT.format(task="Identify emerging market trends and opportunities"),
-    )
-    integration.add_node(
-        "expert_insights",
-        BASE_PROMPT.format(task="Gather expert opinions and industry analysis"),
-    )
-    integration.add_node(
-        "market_data",
-        BASE_PROMPT.format(task="Process market size, growth, and forecast data"),
-    )
-    integration.add_node(
-        "risk_assessment",
-        BASE_PROMPT.format(task="Assess market risks and business threats"),
-    )
-
-    # Parallel Layer 2
-    integration.add_node(
-        "cross_validation",
-        BASE_PROMPT.format(task="Cross-validate findings across research sources")
-        + " Sources: {industry_analysis}, {competitive_intelligence}, {customer_research}, {regulatory_review}",
-        dependencies=[
-            "industry_analysis",
-            "competitive_intelligence",
-            "customer_research",
-            "regulatory_review",
-        ],
-    )
-    integration.add_node(
-        "fact_verification",
-        BASE_PROMPT.format(task="Verify strategic insights and market claims")
-        + " Inputs: {trend_analysis}, {expert_insights}, {market_data}, {risk_assessment}",
-        dependencies=[
-            "trend_analysis",
-            "expert_insights",
-            "market_data",
-            "risk_assessment",
-        ],
-    )
-
-    # Sequential Layer 3
-    integration.add_node(
-        "credibility_assessment",
-        BASE_PROMPT.format(task="Assess source credibility")
-        + " References: {cross_validation}, {fact_verification}",
-        dependencies=["cross_validation", "fact_verification"],
-    )
-    integration.add_node(
-        "quality_check",
-        BASE_PROMPT.format(task="Quality control and data validation")
-        + " Review: {credibility_assessment}",
-        dependencies=["credibility_assessment"],
-    )
-
-    # Parallel Layer 4
-    integration.add_node(
-        "strategic_analysis",
-        BASE_PROMPT.format(
-            task="Synthesize market intelligence into strategic insights"
-        )
-        + " Data: {quality_check}",
-        dependencies=["quality_check"],
-    )
-    integration.add_node(
-        "opportunity_identification",
-        BASE_PROMPT.format(task="Identify strategic opportunities and recommendations")
-        + " Data: {quality_check}",
-        dependencies=["quality_check"],
-    )
-
-    # Final Layer 5
-    integration.add_node(
-        "executive_summary",
-        BASE_PROMPT.format(task="Compile executive market intelligence report")
-        + " Inputs: {strategic_analysis}, {opportunity_identification}",
-        dependencies=["strategic_analysis", "opportunity_identification"],
-    )
-
-
-def _extract(events: Any) -> str:
+def _extract(events: List[Any]) -> str:
     """Return the text content from a list of ADK events."""
 
     if not events:
@@ -195,35 +182,66 @@ def _extract(events: Any) -> str:
     return str(event)
 
 
+async def _call_runner(runner: InMemoryRunner, prompt: str) -> str:
+    events: List[Any] = []
+    async for event in runner.run_async(
+        user_id="user",
+        session_id="session",
+        new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+    ):
+        events.append(event)
+    return _extract(events)
+
+
+async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
+    """Execute the predefined DAG and return node outputs."""
+
+    results: Dict[str, str] = {}
+    pending = {name: set(node.get("deps", [])) for name, node in PLAN.items()}
+    while len(results) < len(PLAN):
+        ready = [
+            name
+            for name, deps in pending.items()
+            if name not in results and deps.issubset(results.keys())
+        ]
+        tasks = {
+            name: asyncio.create_task(
+                _call_runner(runner, PLAN[name]["prompt"].format(**results))
+            )
+            for name in ready
+        }
+        outputs = await asyncio.gather(*tasks.values())
+        for name, text in zip(tasks.keys(), outputs):
+            results[name] = text
+    return results
+
+
 async def main() -> None:
     """Execute the market analysis DAG with and without acceleration."""
 
     print("=== Google ADK Market Intelligence Example ===\n")
-    integration = await _create_integration()
-    _build_dag(integration)
+    runner = await _create_runner()
 
     print("=== Standard Execution ===")
     start = asyncio.get_event_loop().time()
-    results: Dict[str, Any] = await integration.execute({})
+    results = await execute_plan(runner)
     standard_time = asyncio.get_event_loop().time() - start
-    summary = _extract(results["executive_summary"])
     print("Executive Summary:\n")
-    print(summary[:500])
+    print(results["executive_summary"][:500])
     print(f"\nStandard execution time: {standard_time:.2f} seconds\n")
 
     print("=== Accelerated Execution ===")
-    accelerate(integration.runner)
+    accelerate(runner)
     start = asyncio.get_event_loop().time()
-    accel_results: Dict[str, Any] = await integration.execute({})
+    accel_results = await execute_plan(runner)
     accel_time = asyncio.get_event_loop().time() - start
-    accel_summary = _extract(accel_results["executive_summary"])
     print("Executive Summary:\n")
-    print(accel_summary[:500])
+    print(accel_results["executive_summary"][:500])
     print(f"\nAccelerated execution time: {accel_time:.2f} seconds")
     if standard_time > accel_time:
         improvement = ((standard_time - accel_time) / standard_time) * 100
         print(f"Performance improvement: {improvement:.1f}% faster")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - manual invocation
     asyncio.run(main())

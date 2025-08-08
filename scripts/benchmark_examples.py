@@ -9,10 +9,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 SKIP_REQUIREMENTS = {
-    "google_ai_example.py": "GOOGLE_API_KEY",
-    "google_adk_market_analysis.py": "GOOGLE_API_KEY",
-    "microsoft_ai_example.py": "AZURE_OPENAI_KEY",
-    "salesforce_example.py": "SALESFORCE_USERNAME",
+    "google_ai_example.py": ["GOOGLE_API_KEY"],
+    "google_adk_market_analysis.py": [
+        "GOOGLE_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+    ],
+    "microsoft_ai_example.py": ["AZURE_OPENAI_KEY"],
+    "salesforce_example.py": ["SALESFORCE_USERNAME"],
 }
 
 OPTIONAL_MODULES = {
@@ -22,11 +25,15 @@ OPTIONAL_MODULES = {
 results = []
 
 for example in sorted(EXAMPLES_DIR.glob("*.py")):
-    env_var = SKIP_REQUIREMENTS.get(example.name)
-    if env_var and env_var not in os.environ:
-        print(f"Skipping {example.name} (missing {env_var})")
-        results.append((example.name, None, False, None))
-        continue
+    env_vars = SKIP_REQUIREMENTS.get(example.name)
+    if env_vars:
+        if isinstance(env_vars, str):
+            env_vars = [env_vars]
+        if not any(v in os.environ for v in env_vars):
+            missing = " or ".join(env_vars)
+            print(f"Skipping {example.name} (missing {missing})")
+            results.append((example.name, None, False, None))
+            continue
 
     module_names = OPTIONAL_MODULES.get(example.name)
     if module_names:
