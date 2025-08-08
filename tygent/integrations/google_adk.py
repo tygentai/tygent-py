@@ -8,7 +8,10 @@ This module provides a minimal integration with Google's
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from google.adk import Runner  # type: ignore
@@ -45,7 +48,8 @@ class GoogleADKNode(LLMNode):
 
     async def execute(self, inputs: Dict[str, Any]) -> Any:  # noqa: D401
         """Execute the wrapped runner."""
-        prompt = self._format_prompt(inputs, {})
+        # All inputs come from dependency outputs, so format them as variables
+        prompt = self._format_prompt({}, inputs)
         if genai_types is not None:
             content = genai_types.Content(
                 role="user",
@@ -55,6 +59,7 @@ class GoogleADKNode(LLMNode):
             content = prompt
 
         events = []
+        usage = None
         async for event in self.runner.run_async(
             user_id=self.user_id,
             session_id=self.session_id,
@@ -62,7 +67,21 @@ class GoogleADKNode(LLMNode):
             **self.kwargs,
         ):
             events.append(event)
-        return events
+            if usage is None:
+                usage = getattr(event, "usage_metadata", None)
+        if usage is not None:
+            prompt_tokens = getattr(usage, "prompt_token_count", None)
+            response_tokens = getattr(usage, "candidates_token_count", None)
+            logger.info(
+                "%s: %s input tokens, %s output tokens",
+                self.name,
+                prompt_tokens,
+                response_tokens,
+            )
+        else:
+            logger.info("%s: token counts unavailable", self.name)
+        # Wrap the result so dependency names map to unique keys
+        return {self.name: events}
 
     def _format_prompt(
         self, inputs: Dict[str, Any], node_outputs: Dict[str, Any]
@@ -124,7 +143,15 @@ class GoogleADKIntegration:
             self.scheduler.priority_nodes = options["priorityNodes"]
 
     async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.scheduler.execute(inputs)
+        """Execute the DAG and return flattened node outputs."""
+        raw = await self.scheduler.execute(inputs)
+        outputs: Dict[str, Any] = {}
+        for name, value in raw.get("results", {}).items():
+            if isinstance(value, dict) and name in value:
+                outputs[name] = value[name]
+            else:
+                outputs[name] = value
+        return outputs
 
 
 def patch() -> None:
