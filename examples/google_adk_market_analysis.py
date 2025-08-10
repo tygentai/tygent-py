@@ -159,10 +159,10 @@ PLAN: Dict[str, Dict[str, Any]] = {
 async def _create_runner() -> InMemoryRunner:
     agent = LlmAgent(
         name="analyst",
-        model="gemini-1.5-flash",
+        model="gemini-2.5-pro",
         instruction=INSTRUCTION,
         generate_content_config=types.GenerateContentConfig(
-            temperature=0.7, max_output_tokens=150
+            temperature=0.7, max_output_tokens=64000
         ),
     )
     runner = InMemoryRunner(agent)
@@ -186,6 +186,8 @@ def _extract(events: List[Any]) -> str:
 
 
 async def _call_runner(runner: InMemoryRunner, name: str, prompt: str) -> str:
+    start = asyncio.get_event_loop().time()
+    logger.info("Starting %s", name)
     events: List[Any] = []
     usage = None
     async for event in runner.run_async(
@@ -196,18 +198,20 @@ async def _call_runner(runner: InMemoryRunner, name: str, prompt: str) -> str:
         events.append(event)
         if usage is None:
             usage = getattr(event, "usage_metadata", None)
+    duration = asyncio.get_event_loop().time() - start
     text = _extract(events)
     if usage is not None:
         prompt_tokens = getattr(usage, "prompt_token_count", None)
         response_tokens = getattr(usage, "candidates_token_count", None)
         logger.info(
-            "%s: %s input tokens, %s output tokens",
+            "%s finished in %.2fs: %s input tokens, %s output tokens",
             name,
+            duration,
             prompt_tokens,
             response_tokens,
         )
     else:
-        logger.info("%s: token counts unavailable", name)
+        logger.info("%s finished in %.2fs: token counts unavailable", name, duration)
     return text
 
 
@@ -236,7 +240,10 @@ async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
 
 async def main() -> None:
     """Execute the market analysis DAG with and without acceleration."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     print("=== Google ADK Market Intelligence Example ===\n")
     runner = await _create_runner()
