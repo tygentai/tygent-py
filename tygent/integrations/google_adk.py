@@ -37,12 +37,14 @@ class GoogleADKNode(LLMNode):
         dependencies: Optional[List[str]] = None,
         user_id: str = "user",
         session_id: str = "session",
+        log_usage: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, model=runner, prompt_template=prompt_template)
         self.runner = runner
         self.user_id = user_id
         self.session_id = session_id
+        self.log_usage = log_usage
         if dependencies:
             self.dependencies = dependencies
         self.kwargs = kwargs
@@ -72,20 +74,23 @@ class GoogleADKNode(LLMNode):
             if usage is None:
                 usage = getattr(event, "usage_metadata", None)
         duration = time.time() - start
-        if usage is not None:
-            prompt_tokens = getattr(usage, "prompt_token_count", None)
-            response_tokens = getattr(usage, "candidates_token_count", None)
-            logger.info(
-                "%s executed in %.2fs: %s input tokens, %s output tokens",
-                self.name,
-                duration,
-                prompt_tokens,
-                response_tokens,
-            )
-        else:
-            logger.info(
-                "%s executed in %.2fs: token counts unavailable", self.name, duration
-            )
+        if self.log_usage:
+            if usage is not None:
+                prompt_tokens = getattr(usage, "prompt_token_count", None)
+                response_tokens = getattr(usage, "candidates_token_count", None)
+                logger.info(
+                    "%s executed in %.2fs: %s input tokens, %s output tokens",
+                    self.name,
+                    duration,
+                    prompt_tokens,
+                    response_tokens,
+                )
+            else:
+                logger.info(
+                    "%s executed in %.2fs: token counts unavailable",
+                    self.name,
+                    duration,
+                )
         # Wrap the result so dependency names map to unique keys
         return {self.name: events}
 
@@ -128,6 +133,7 @@ class GoogleADKIntegration:
         name: str,
         prompt_template: str,
         dependencies: Optional[List[str]] = None,
+        log_usage: bool = False,
         **kwargs: Any,
     ) -> GoogleADKNode:
         node = GoogleADKNode(
@@ -135,6 +141,7 @@ class GoogleADKIntegration:
             runner=self.runner,
             prompt_template=prompt_template,
             dependencies=dependencies,
+            log_usage=log_usage,
             **kwargs,
         )
         self.dag.add_node(node)

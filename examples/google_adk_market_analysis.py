@@ -15,6 +15,7 @@ summary.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import os
@@ -185,9 +186,12 @@ def _extract(events: List[Any]) -> str:
     return str(event)
 
 
-async def _call_runner(runner: InMemoryRunner, name: str, prompt: str) -> str:
+async def _call_runner(
+    runner: InMemoryRunner, name: str, prompt: str, log_usage: bool = False
+) -> str:
     start = asyncio.get_event_loop().time()
-    logger.info("Starting %s", name)
+    if log_usage:
+        logger.info("Starting %s", name)
     events: List[Any] = []
     usage = None
     async for event in runner.run_async(
@@ -200,22 +204,27 @@ async def _call_runner(runner: InMemoryRunner, name: str, prompt: str) -> str:
             usage = getattr(event, "usage_metadata", None)
     duration = asyncio.get_event_loop().time() - start
     text = _extract(events)
-    if usage is not None:
-        prompt_tokens = getattr(usage, "prompt_token_count", None)
-        response_tokens = getattr(usage, "candidates_token_count", None)
-        logger.info(
-            "%s finished in %.2fs: %s input tokens, %s output tokens",
-            name,
-            duration,
-            prompt_tokens,
-            response_tokens,
-        )
-    else:
-        logger.info("%s finished in %.2fs: token counts unavailable", name, duration)
+    if log_usage:
+        if usage is not None:
+            prompt_tokens = getattr(usage, "prompt_token_count", None)
+            response_tokens = getattr(usage, "candidates_token_count", None)
+            logger.info(
+                "%s finished in %.2fs: %s input tokens, %s output tokens",
+                name,
+                duration,
+                prompt_tokens,
+                response_tokens,
+            )
+        else:
+            logger.info(
+                "%s finished in %.2fs: token counts unavailable", name, duration
+            )
     return text
 
 
-async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
+async def execute_plan(
+    runner: InMemoryRunner, log_usage: bool = False
+) -> Dict[str, str]:
     """Execute the predefined DAG and return node outputs."""
 
     results: Dict[str, str] = {}
@@ -228,7 +237,12 @@ async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
         ]
         tasks = {
             name: asyncio.create_task(
-                _call_runner(runner, name, PLAN[name]["prompt"].format(**results))
+                _call_runner(
+                    runner,
+                    name,
+                    PLAN[name]["prompt"].format(**results),
+                    log_usage,
+                )
             )
             for name in ready
         }
@@ -238,10 +252,10 @@ async def execute_plan(runner: InMemoryRunner) -> Dict[str, str]:
     return results
 
 
-async def main() -> None:
+async def main(log_usage: bool = False) -> None:
     """Execute the market analysis DAG with and without acceleration."""
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.INFO if log_usage else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
@@ -250,7 +264,7 @@ async def main() -> None:
 
     print("=== Standard Execution ===")
     start = asyncio.get_event_loop().time()
-    results = await execute_plan(runner)
+    results = await execute_plan(runner, log_usage)
     standard_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(results["executive_summary"][:500])
@@ -259,7 +273,7 @@ async def main() -> None:
     print("=== Accelerated Execution ===")
     accelerate(runner)
     start = asyncio.get_event_loop().time()
-    accel_results = await execute_plan(runner)
+    accel_results = await execute_plan(runner, log_usage)
     accel_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(accel_results["executive_summary"][:500])
@@ -270,4 +284,13 @@ async def main() -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(
+        description="Google ADK Market Intelligence Example"
+    )
+    parser.add_argument(
+        "--log",
+        action="store_true",
+        help="Enable per-node logging of execution time and token usage",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(log_usage=args.log))
