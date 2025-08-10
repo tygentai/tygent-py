@@ -223,7 +223,7 @@ async def _call_runner(
 
 
 async def execute_plan(
-    runner: InMemoryRunner, log_usage: bool = False, parallel: bool = True
+    runner: InMemoryRunner, log_usage: bool = False
 ) -> Dict[str, str]:
     """Execute the predefined DAG and return node outputs."""
 
@@ -235,29 +235,13 @@ async def execute_plan(
             for name, deps in pending.items()
             if name not in results and deps.issubset(results.keys())
         )
-        if parallel:
-            tasks = {
-                name: asyncio.create_task(
-                    _call_runner(
-                        runner,
-                        name,
-                        PLAN[name]["prompt"].format(**results),
-                        log_usage,
-                    )
-                )
-                for name in ready
-            }
-            outputs = await asyncio.gather(*tasks.values())
-            for name, text in zip(tasks.keys(), outputs):
-                results[name] = text
-        else:
-            name = ready[0]
-            results[name] = await _call_runner(
-                runner,
-                name,
-                PLAN[name]["prompt"].format(**results),
-                log_usage,
-            )
+        name = ready[0]
+        results[name] = await _call_runner(
+            runner,
+            name,
+            PLAN[name]["prompt"].format(**results),
+            log_usage,
+        )
     return results
 
 
@@ -273,16 +257,16 @@ async def main(log_usage: bool = False) -> None:
 
     print("=== Standard Execution ===")
     start = asyncio.get_event_loop().time()
-    results = await execute_plan(runner, log_usage, parallel=False)
+    results = await execute_plan(runner, log_usage)
     standard_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(results["executive_summary"][:500])
     print(f"\nStandard execution time: {standard_time:.2f} seconds\n")
 
     print("=== Accelerated Execution ===")
-    accelerate(runner)
+    accelerated_execute = accelerate(execute_plan)
     start = asyncio.get_event_loop().time()
-    accel_results = await execute_plan(runner, log_usage)
+    accel_results = await accelerated_execute(runner, log_usage)
     accel_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(accel_results["executive_summary"][:500])
