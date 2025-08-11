@@ -8,7 +8,11 @@ This module provides a minimal integration with Google's
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from google.adk import Runner  # type: ignore
@@ -33,19 +37,22 @@ class GoogleADKNode(LLMNode):
         dependencies: Optional[List[str]] = None,
         user_id: str = "user",
         session_id: str = "session",
+        log_usage: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, model=runner, prompt_template=prompt_template)
         self.runner = runner
         self.user_id = user_id
         self.session_id = session_id
+        self.log_usage = log_usage
         if dependencies:
             self.dependencies = dependencies
         self.kwargs = kwargs
 
     async def execute(self, inputs: Dict[str, Any]) -> Any:  # noqa: D401
         """Execute the wrapped runner."""
-        prompt = self._format_prompt(inputs, {})
+        # All inputs come from dependency outputs, so format them as variables
+        prompt = self._format_prompt({}, inputs)
         if genai_types is not None:
             content = genai_types.Content(
                 role="user",
@@ -55,6 +62,8 @@ class GoogleADKNode(LLMNode):
             content = prompt
 
         events = []
+        usage = None
+        start = time.time()
         async for event in self.runner.run_async(
             user_id=self.user_id,
             session_id=self.session_id,
@@ -62,7 +71,28 @@ class GoogleADKNode(LLMNode):
             **self.kwargs,
         ):
             events.append(event)
-        return events
+            if usage is None:
+                usage = getattr(event, "usage_metadata", None)
+        duration = time.time() - start
+        if self.log_usage:
+            if usage is not None:
+                prompt_tokens = getattr(usage, "prompt_token_count", None)
+                response_tokens = getattr(usage, "candidates_token_count", None)
+                logger.info(
+                    "%s executed in %.2fs: %s input tokens, %s output tokens",
+                    self.name,
+                    duration,
+                    prompt_tokens,
+                    response_tokens,
+                )
+            else:
+                logger.info(
+                    "%s executed in %.2fs: token counts unavailable",
+                    self.name,
+                    duration,
+                )
+        # Wrap the result so dependency names map to unique keys
+        return {self.name: events}
 
     def _format_prompt(
         self, inputs: Dict[str, Any], node_outputs: Dict[str, Any]
@@ -103,6 +133,7 @@ class GoogleADKIntegration:
         name: str,
         prompt_template: str,
         dependencies: Optional[List[str]] = None,
+        log_usage: bool = False,
         **kwargs: Any,
     ) -> GoogleADKNode:
         node = GoogleADKNode(
@@ -110,6 +141,7 @@ class GoogleADKIntegration:
             runner=self.runner,
             prompt_template=prompt_template,
             dependencies=dependencies,
+            log_usage=log_usage,
             **kwargs,
         )
         self.dag.add_node(node)
@@ -124,7 +156,15 @@ class GoogleADKIntegration:
             self.scheduler.priority_nodes = options["priorityNodes"]
 
     async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.scheduler.execute(inputs)
+        """Execute the DAG and return flattened node outputs."""
+        raw = await self.scheduler.execute(inputs)
+        outputs: Dict[str, Any] = {}
+        for name, value in raw.get("results", {}).items():
+            if isinstance(value, dict) and name in value:
+                outputs[name] = value[name]
+            else:
+                outputs[name] = value
+        return outputs
 
 
 def patch() -> None:
