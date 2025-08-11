@@ -225,24 +225,37 @@ async def _call_runner(
 async def execute_plan(
     runner: InMemoryRunner, log_usage: bool = False
 ) -> Dict[str, str]:
-    """Execute the predefined DAG and return node outputs."""
+    """Execute the predefined DAG sequentially in defined order."""
 
     results: Dict[str, str] = {}
-    pending = {name: set(node.get("deps", [])) for name, node in PLAN.items()}
-    while len(results) < len(PLAN):
-        ready = sorted(
-            name
-            for name, deps in pending.items()
-            if name not in results and deps.issubset(results.keys())
-        )
-        name = ready[0]
+    for name, node in PLAN.items():
         results[name] = await _call_runner(
             runner,
             name,
-            PLAN[name]["prompt"].format(**results),
+            node["prompt"].format(**results),
             log_usage,
         )
     return results
+
+
+def build_tygent_plan(runner: InMemoryRunner, log_usage: bool) -> Dict[str, Any]:
+    """Build a Tygent-compatible plan from the predefined DAG."""
+
+    steps: List[Dict[str, Any]] = []
+    for name, node in PLAN.items():
+        prompt = node["prompt"]
+
+        async def step(inputs: Dict[str, str], name=name, prompt=prompt):
+            return await _call_runner(
+                runner,
+                name,
+                prompt.format(**inputs),
+                log_usage,
+            )
+
+        steps.append({"name": name, "func": step, "dependencies": node["deps"]})
+
+    return {"name": "market_intelligence", "steps": steps}
 
 
 async def main(log_usage: bool = False) -> None:
@@ -264,9 +277,9 @@ async def main(log_usage: bool = False) -> None:
     print(f"\nStandard execution time: {standard_time:.2f} seconds\n")
 
     print("=== Accelerated Execution ===")
-    accelerated_execute = accelerate(execute_plan)
+    accelerated_plan = accelerate(build_tygent_plan(runner, log_usage))
     start = asyncio.get_event_loop().time()
-    accel_results = await accelerated_execute(runner, log_usage)
+    accel_results = await accelerated_plan({})
     accel_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(accel_results["executive_summary"][:500])
