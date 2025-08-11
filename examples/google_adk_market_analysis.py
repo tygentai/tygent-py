@@ -61,100 +61,113 @@ BASE_PROMPT = (
     "business decisions."
 )
 
-PLAN: Dict[str, Dict[str, Any]] = {
-    "industry_analysis": {
-        "prompt": BASE_PROMPT.format(
-            task="Analyze industry trends and market dynamics"
-        ),
-        "deps": [],
-    },
-    "competitive_intelligence": {
-        "prompt": BASE_PROMPT.format(
-            task="Research competitor strategies and positioning"
-        ),
-        "deps": [],
-    },
-    "customer_research": {
-        "prompt": BASE_PROMPT.format(task="Analyze customer behavior and preferences"),
-        "deps": [],
-    },
-    "regulatory_review": {
-        "prompt": BASE_PROMPT.format(
-            task="Review regulatory environment and compliance requirements"
-        ),
-        "deps": [],
-    },
-    "trend_analysis": {
-        "prompt": BASE_PROMPT.format(
-            task="Identify emerging market trends and opportunities"
-        ),
-        "deps": [],
-    },
-    "expert_insights": {
-        "prompt": BASE_PROMPT.format(
-            task="Gather expert opinions and industry analysis"
-        ),
-        "deps": [],
-    },
-    "market_data": {
-        "prompt": BASE_PROMPT.format(
-            task="Process market size, growth, and forecast data"
-        ),
-        "deps": [],
-    },
-    "risk_assessment": {
-        "prompt": BASE_PROMPT.format(task="Assess market risks and business threats"),
-        "deps": [],
-    },
-    "cross_validation": {
-        "prompt": BASE_PROMPT.format(
-            task="Cross-validate findings across research sources"
-        )
-        + " Sources: {industry_analysis}, {competitive_intelligence}, {customer_research}, {regulatory_review}",
-        "deps": [
-            "industry_analysis",
-            "competitive_intelligence",
-            "customer_research",
-            "regulatory_review",
-        ],
-    },
-    "fact_verification": {
-        "prompt": BASE_PROMPT.format(task="Verify strategic insights and market claims")
-        + " Inputs: {trend_analysis}, {expert_insights}, {market_data}, {risk_assessment}",
-        "deps": ["trend_analysis", "expert_insights", "market_data", "risk_assessment"],
-    },
-    "credibility_assessment": {
-        "prompt": BASE_PROMPT.format(task="Assess source credibility")
-        + " References: {cross_validation}, {fact_verification}",
-        "deps": ["cross_validation", "fact_verification"],
-    },
-    "quality_check": {
-        "prompt": BASE_PROMPT.format(task="Quality control and data validation")
-        + " Review: {credibility_assessment}",
-        "deps": ["credibility_assessment"],
-    },
-    "strategic_analysis": {
-        "prompt": BASE_PROMPT.format(
-            task="Synthesize market intelligence into strategic insights"
-        )
-        + " Data: {quality_check}",
-        "deps": ["quality_check"],
-    },
-    "opportunity_identification": {
-        "prompt": BASE_PROMPT.format(
-            task="Identify strategic opportunities and recommendations"
-        )
-        + " Data: {quality_check}",
-        "deps": ["quality_check"],
-    },
-    "executive_summary": {
-        "prompt": BASE_PROMPT.format(
-            task="Compile executive market intelligence report"
-        )
-        + " Inputs: {strategic_analysis}, {opportunity_identification}",
-        "deps": ["strategic_analysis", "opportunity_identification"],
-    },
-}
+
+def build_plan() -> Dict[str, Dict[str, Any]]:
+    return {
+        "industry_analysis": {
+            "prompt": BASE_PROMPT.format(
+                task="Analyze industry trends and market dynamics"
+            ),
+            "deps": [],
+        },
+        "competitive_intelligence": {
+            "prompt": BASE_PROMPT.format(
+                task="Research competitor strategies and positioning"
+            ),
+            "deps": [],
+        },
+        "customer_research": {
+            "prompt": BASE_PROMPT.format(
+                task="Analyze customer behavior and preferences"
+            ),
+            "deps": [],
+        },
+        "regulatory_review": {
+            "prompt": BASE_PROMPT.format(
+                task="Review regulatory environment and compliance requirements"
+            ),
+            "deps": [],
+        },
+        "trend_analysis": {
+            "prompt": BASE_PROMPT.format(
+                task="Identify emerging market trends and opportunities"
+            ),
+            "deps": [],
+        },
+        "expert_insights": {
+            "prompt": BASE_PROMPT.format(
+                task="Gather expert opinions and industry analysis"
+            ),
+            "deps": [],
+        },
+        "market_data": {
+            "prompt": BASE_PROMPT.format(
+                task="Process market size, growth, and forecast data"
+            ),
+            "deps": [],
+        },
+        "risk_assessment": {
+            "prompt": BASE_PROMPT.format(
+                task="Assess market risks and business threats"
+            ),
+            "deps": [],
+        },
+        "cross_validation": {
+            "prompt": BASE_PROMPT.format(
+                task="Cross-validate findings across research sources"
+            )
+            + " Sources: {industry_analysis}, {competitive_intelligence}, {customer_research}, {regulatory_review}",
+            "deps": [
+                "industry_analysis",
+                "competitive_intelligence",
+                "customer_research",
+                "regulatory_review",
+            ],
+        },
+        "fact_verification": {
+            "prompt": BASE_PROMPT.format(
+                task="Verify strategic insights and market claims"
+            )
+            + " Inputs: {trend_analysis}, {expert_insights}, {market_data}, {risk_assessment}",
+            "deps": [
+                "trend_analysis",
+                "expert_insights",
+                "market_data",
+                "risk_assessment",
+            ],
+        },
+        "credibility_assessment": {
+            "prompt": BASE_PROMPT.format(task="Assess source credibility")
+            + " References: {cross_validation}, {fact_verification}",
+            "deps": ["cross_validation", "fact_verification"],
+        },
+        "quality_check": {
+            "prompt": BASE_PROMPT.format(task="Quality control and data validation")
+            + " Review: {credibility_assessment}",
+            "deps": ["credibility_assessment"],
+        },
+        "strategic_analysis": {
+            "prompt": BASE_PROMPT.format(
+                task="Synthesize market intelligence into strategic insights"
+            )
+            + " Data: {quality_check}",
+            "deps": ["quality_check"],
+        },
+        "opportunity_identification": {
+            "prompt": BASE_PROMPT.format(
+                task="Identify strategic opportunities and recommendations"
+            )
+            + " Data: {quality_check}",
+            "deps": ["quality_check"],
+        },
+        "executive_summary": {
+            "prompt": BASE_PROMPT.format(
+                task="Compile executive market intelligence report"
+            )
+            + " Inputs: {strategic_analysis}, {opportunity_identification}",
+            "deps": ["strategic_analysis", "opportunity_identification"],
+        },
+    }
 
 
 async def _create_runner() -> InMemoryRunner:
@@ -223,12 +236,14 @@ async def _call_runner(
 
 
 async def execute_plan(
-    runner: InMemoryRunner, log_usage: bool = False
+    plan: Dict[str, Dict[str, Any]],
+    runner: InMemoryRunner,
+    log_usage: bool = False,
 ) -> Dict[str, str]:
-    """Execute the predefined DAG sequentially in defined order."""
+    """Execute the provided DAG sequentially in defined order."""
 
     results: Dict[str, str] = {}
-    for name, node in PLAN.items():
+    for name, node in plan.items():
         results[name] = await _call_runner(
             runner,
             name,
@@ -238,11 +253,15 @@ async def execute_plan(
     return results
 
 
-def build_tygent_plan(runner: InMemoryRunner, log_usage: bool) -> Dict[str, Any]:
-    """Build a Tygent-compatible plan from the predefined DAG."""
+def build_tygent_plan(
+    plan: Dict[str, Dict[str, Any]],
+    runner: InMemoryRunner,
+    log_usage: bool,
+) -> Dict[str, Any]:
+    """Build a Tygent-compatible plan from the provided DAG."""
 
     steps: List[Dict[str, Any]] = []
-    for name, node in PLAN.items():
+    for name, node in plan.items():
         prompt = node["prompt"]
 
         async def step(inputs: Dict[str, str], name=name, prompt=prompt):
@@ -267,17 +286,18 @@ async def main(log_usage: bool = False) -> None:
 
     print("=== Google ADK Market Intelligence Example ===\n")
     runner = await _create_runner()
+    plan = build_plan()
 
     print("=== Standard Execution ===")
     start = asyncio.get_event_loop().time()
-    results = await execute_plan(runner, log_usage)
+    results = await execute_plan(plan, runner, log_usage)
     standard_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(results["executive_summary"][:500])
     print(f"\nStandard execution time: {standard_time:.2f} seconds\n")
 
     print("=== Accelerated Execution ===")
-    accelerated_plan = accelerate(build_tygent_plan(runner, log_usage))
+    accelerated_plan = accelerate(build_tygent_plan(plan, runner, log_usage))
     start = asyncio.get_event_loop().time()
     accel_results = await accelerated_plan({})
     accel_time = asyncio.get_event_loop().time() - start
