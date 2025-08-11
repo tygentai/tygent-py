@@ -299,7 +299,8 @@ async def main(log_usage: bool = False) -> None:
     print("=== Accelerated Execution ===")
     accelerated_plan = accelerate(build_tygent_plan(plan, runner, log_usage))
     start = asyncio.get_event_loop().time()
-    accel_results = await accelerated_plan({})
+    accel_raw = await accelerated_plan({})
+    accel_results = accel_raw["results"]
     accel_time = asyncio.get_event_loop().time() - start
     print("Executive Summary:\n")
     print(accel_results["executive_summary"][:500])

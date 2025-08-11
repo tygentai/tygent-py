@@ -333,6 +333,10 @@ class Scheduler:
 
         # Apply mappings from edge metadata to input fields
         for dep_name, dep_output in dependency_outputs.items():
+            # Normalize outputs so simple types map to their dependency name
+            if not isinstance(dep_output, dict):
+                dep_output = {dep_name: dep_output}
+
             # Check if we have a mapping for this dependency
             if (
                 dep_name in dag.edge_mappings
