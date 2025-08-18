@@ -8,7 +8,8 @@ credentials (``GOOGLE_APPLICATION_CREDENTIALS``, ``GOOGLE_CLOUD_PROJECT``, and
 
 This script builds a directed acyclic graph (DAG) representing a multi-step
 market intelligence research workflow using Google's Agent Development Kit
-(ADK). The DAG mirrors the prompt-based plan described in the documentation and
+(ADK). Instead of using a hard-coded plan, the model is prompted to generate
+the plan as JSON which is then optimized and executed via Tygent. The workflow
 includes validation and synthesis stages before producing an executive
 summary.
 """
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 from typing import Any, Dict, List
@@ -62,112 +64,28 @@ BASE_PROMPT = (
 )
 
 
-def build_plan() -> Dict[str, Dict[str, Any]]:
-    return {
-        "industry_analysis": {
-            "prompt": BASE_PROMPT.format(
-                task="Analyze industry trends and market dynamics"
-            ),
-            "deps": [],
-        },
-        "competitive_intelligence": {
-            "prompt": BASE_PROMPT.format(
-                task="Research competitor strategies and positioning"
-            ),
-            "deps": [],
-        },
-        "customer_research": {
-            "prompt": BASE_PROMPT.format(
-                task="Analyze customer behavior and preferences"
-            ),
-            "deps": [],
-        },
-        "regulatory_review": {
-            "prompt": BASE_PROMPT.format(
-                task="Review regulatory environment and compliance requirements"
-            ),
-            "deps": [],
-        },
-        "trend_analysis": {
-            "prompt": BASE_PROMPT.format(
-                task="Identify emerging market trends and opportunities"
-            ),
-            "deps": [],
-        },
-        "expert_insights": {
-            "prompt": BASE_PROMPT.format(
-                task="Gather expert opinions and industry analysis"
-            ),
-            "deps": [],
-        },
-        "market_data": {
-            "prompt": BASE_PROMPT.format(
-                task="Process market size, growth, and forecast data"
-            ),
-            "deps": [],
-        },
-        "risk_assessment": {
-            "prompt": BASE_PROMPT.format(
-                task="Assess market risks and business threats"
-            ),
-            "deps": [],
-        },
-        "cross_validation": {
-            "prompt": BASE_PROMPT.format(
-                task="Cross-validate findings across research sources"
-            )
-            + " Sources: {industry_analysis}, {competitive_intelligence}, {customer_research}, {regulatory_review}",
-            "deps": [
-                "industry_analysis",
-                "competitive_intelligence",
-                "customer_research",
-                "regulatory_review",
-            ],
-        },
-        "fact_verification": {
-            "prompt": BASE_PROMPT.format(
-                task="Verify strategic insights and market claims"
-            )
-            + " Inputs: {trend_analysis}, {expert_insights}, {market_data}, {risk_assessment}",
-            "deps": [
-                "trend_analysis",
-                "expert_insights",
-                "market_data",
-                "risk_assessment",
-            ],
-        },
-        "credibility_assessment": {
-            "prompt": BASE_PROMPT.format(task="Assess source credibility")
-            + " References: {cross_validation}, {fact_verification}",
-            "deps": ["cross_validation", "fact_verification"],
-        },
-        "quality_check": {
-            "prompt": BASE_PROMPT.format(task="Quality control and data validation")
-            + " Review: {credibility_assessment}",
-            "deps": ["credibility_assessment"],
-        },
-        "strategic_analysis": {
-            "prompt": BASE_PROMPT.format(
-                task="Synthesize market intelligence into strategic insights"
-            )
-            + " Data: {quality_check}",
-            "deps": ["quality_check"],
-        },
-        "opportunity_identification": {
-            "prompt": BASE_PROMPT.format(
-                task="Identify strategic opportunities and recommendations"
-            )
-            + " Data: {quality_check}",
-            "deps": ["quality_check"],
-        },
-        "executive_summary": {
-            "prompt": BASE_PROMPT.format(
-                task="Compile executive market intelligence report"
-            )
-            + " Inputs: {strategic_analysis}, {opportunity_identification}",
-            "deps": ["strategic_analysis", "opportunity_identification"],
-        },
-    }
+PLAN_GENERATION_PROMPT = (
+    "Generate a comprehensive market intelligence research plan as a JSON object representing a DAG. "
+    "The JSON should map step names to objects containing 'prompt' and 'deps' (a list of dependencies). "
+    'Use the prompt template "'
+    + BASE_PROMPT
+    + '" filling in an appropriate task for each step. '
+    "Cover industry, competitor, customer, regulatory, trend, expert insight, market data, risk, validation, and synthesis "
+    "phases, culminating in an executive_summary. Each prompt should be concise and suitable for direct model invocation. "
+    "Return only valid JSON."
+)
+
+
+async def build_plan(
+    runner: InMemoryRunner, log_usage: bool = False
+) -> Dict[str, Dict[str, Any]]:
+    """Ask the model to produce a DAG plan and return it as a dictionary."""
+
+    text = await _call_runner(runner, "plan_builder", PLAN_GENERATION_PROMPT, log_usage)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:  # pragma: no cover - example fallback
+        raise ValueError(f"Failed to parse plan JSON: {text}") from exc
 
 
 async def _create_runner() -> InMemoryRunner:
@@ -286,7 +204,7 @@ async def main(log_usage: bool = False) -> None:
 
     print("=== Google ADK Market Intelligence Example ===\n")
     runner = await _create_runner()
-    plan = build_plan()
+    plan = await build_plan(runner, log_usage)
 
     print("=== Standard Execution ===")
     start = asyncio.get_event_loop().time()
