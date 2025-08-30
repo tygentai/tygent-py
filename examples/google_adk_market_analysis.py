@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -76,16 +77,29 @@ PLAN_GENERATION_PROMPT = (
 )
 
 
+def _parse_plan_json(text: str) -> Dict[str, Dict[str, Any]]:
+    """Return a plan dictionary from raw model output.
+
+    The model should emit pure JSON, but it may occasionally wrap the payload
+    in Markdown code fences. This helper strips those fences before parsing.
+    """
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+        if match:
+            return json.loads(match.group(1))
+        raise ValueError(f"Failed to parse plan JSON: {text}")
+
+
 async def build_plan(
     runner: InMemoryRunner, log_usage: bool = False
 ) -> Dict[str, Dict[str, Any]]:
     """Ask the model to produce a DAG plan and return it as a dictionary."""
 
     text = await _call_runner(runner, "plan_builder", PLAN_GENERATION_PROMPT, log_usage)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:  # pragma: no cover - example fallback
-        raise ValueError(f"Failed to parse plan JSON: {text}") from exc
+    return _parse_plan_json(text)
 
 
 async def _create_runner() -> InMemoryRunner:
