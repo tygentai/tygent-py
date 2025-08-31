@@ -32,5 +32,8 @@ setup(
         "python-dotenv",
         "google-adk; python_version >= '3.9'",
         "google-genai; python_version >= '3.9'",
+        "langchain; python_version >= '3.9'",
+        "langchain-google-genai; python_version >= '3.9'",
+        "google-generativeai; python_version >= '3.9'",
     ],
 )
