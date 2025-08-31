@@ -203,12 +203,12 @@ def _accelerate_langchain_agent(agent: Any) -> Any:
                     tool_node = ToolNode(name=tool.name, func=tool.func)
                     self._dag.add_node(tool_node)
 
-        def run(self, query: str) -> str:
+        def run(self, *args, **kwargs) -> Any:
             """Run agent with potential parallel optimization."""
             # For now, delegate to original agent
             # In full implementation, this would analyze the query
             # and execute independent tools in parallel
-            return self.original_agent.run(query)
+            return self.original_agent.run(*args, **kwargs)
 
         def __getattr__(self, name):
             """Delegate other attributes to original agent."""

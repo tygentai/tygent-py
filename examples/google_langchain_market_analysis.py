@@ -26,8 +26,8 @@ except Exception:  # pragma: no cover - optional dependency
     pass
 
 try:  # pragma: no cover - optional dependency
-    from langchain.chains import LLMChain
     from langchain.prompts import ChatPromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
     from langchain_google_genai import ChatGoogleGenerativeAI
 except Exception:  # pragma: no cover - optional dependency
     print(
@@ -56,7 +56,7 @@ BASE_PROMPT = (
 )
 
 
-def build_chain() -> LLMChain:
+def build_chain():
     """Create the LangChain workflow."""
 
     llm = ChatGoogleGenerativeAI(
@@ -70,7 +70,7 @@ def build_chain() -> LLMChain:
             ("human", BASE_PROMPT),
         ]
     )
-    return LLMChain(llm=llm, prompt=prompt)
+    return prompt | llm | StrOutputParser()
 
 
 def main(task: str) -> None:
@@ -81,7 +81,7 @@ def main(task: str) -> None:
 
     print("=== Standard Execution ===")
     start = time.perf_counter()
-    standard = chain.run(task=task)
+    standard = chain.invoke({"task": task})
     standard_time = time.perf_counter() - start
     print(standard[:500])
     print(f"\nStandard execution took {standard_time:.2f}s")
@@ -89,7 +89,7 @@ def main(task: str) -> None:
     print("\n=== Accelerated Execution ===")
     accelerated_chain = accelerate(chain)
     start = time.perf_counter()
-    accelerated = accelerated_chain.run(task=task)
+    accelerated = accelerated_chain({"task": task})
     accelerated_time = time.perf_counter() - start
     print(accelerated[:500])
     print(f"\nAccelerated execution took {accelerated_time:.2f}s")
