@@ -35,5 +35,6 @@ setup(
         "langchain; python_version >= '3.9'",
         "langchain-google-genai; python_version >= '3.9'",
         "google-generativeai; python_version >= '3.9'",
+        "langgraph; python_version >= '3.9'",
     ],
 )

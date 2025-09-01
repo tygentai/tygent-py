@@ -89,7 +89,7 @@ def main(task: str) -> None:
     print("\n=== Accelerated Execution ===")
     accelerated_chain = accelerate(chain)
     start = time.perf_counter()
-    accelerated = accelerated_chain({"task": task})
+    accelerated = accelerated_chain.invoke({"task": task})
     accelerated_time = time.perf_counter() - start
     print(accelerated[:500])
     print(f"\nAccelerated execution took {accelerated_time:.2f}s")
