@@ -14,12 +14,17 @@ SKIP_REQUIREMENTS = {
         "GOOGLE_API_KEY",
         "GOOGLE_APPLICATION_CREDENTIALS",
     ],
+    "langchain_market_analysis.py": ["GOOGLE_API_KEY"],
     "microsoft_ai_example.py": ["AZURE_OPENAI_KEY"],
     "salesforce_example.py": ["SALESFORCE_USERNAME"],
 }
 
 OPTIONAL_MODULES = {
-    "langgraph_integration.py": ["langgraph", "langchain", "langchain_community"]
+    "langgraph_integration.py": ["langgraph", "langchain", "langchain_community"],
+    "langchain_market_analysis.py": [
+        "langchain",
+        ("langchain_google_genai", "langchain-google-genai"),
+    ],
 }
 
 results = []
@@ -35,14 +40,22 @@ for example in sorted(EXAMPLES_DIR.glob("*.py")):
             results.append((example.name, None, False, None))
             continue
 
-    module_names = OPTIONAL_MODULES.get(example.name)
-    if module_names:
+    module_specs = OPTIONAL_MODULES.get(example.name)
+    if module_specs:
         from importlib.util import find_spec
 
-        if isinstance(module_names, str):
-            module_names = [module_names]
+        if isinstance(module_specs, (str, tuple)):
+            module_specs = [module_specs]
 
-        missing = [m for m in module_names if find_spec(m) is None]
+        missing = []
+        for spec in module_specs:
+            if isinstance(spec, tuple):
+                module_name, pip_name = spec
+            else:
+                module_name = pip_name = spec
+            if find_spec(module_name) is None:
+                missing.append(pip_name)
+
         if missing:
             print(
                 f"Installing missing modules for {example.name}: {', '.join(missing)}"
