@@ -153,6 +153,13 @@ accelerated_agent = accelerate(agent)
 result = accelerated_agent.run("Analyze market trends")
 ```
 
+#### Example: LangGraph Multi-Agent Workflow
+
+See [`examples/langgraph_tata_capital_example.py`](examples/langgraph_tata_capital_example.py) for a
+complete example that builds a LangGraph workflow from a JSON agent specification,
+uses OpenAI's ChatGPT model, and compares execution with and without Tygent to
+measure latency and token savings.
+
 #### Custom Multi-Agent System
 ```python
 import asyncio
