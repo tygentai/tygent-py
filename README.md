@@ -335,6 +335,10 @@ tygent-py/
 - **Linting**: Black formatting, flake8 compliance
 - **Documentation**: Detailed docstrings and examples
 
+## VS Code Extension
+
+The `vscode-extension` folder provides a simple Visual Studio Code extension. Use the **Tygent: Enable Agent** command to insert `tygent.install()` into the active Python file, converting existing agent implementations to use Tygent automatically.
+
 ## License
 
 Creative Commons Attribution-NonCommercial 4.0 International License.
