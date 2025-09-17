@@ -362,6 +362,600 @@ TATA_CONFIG: Dict[str, Any] = {
 
 TATA_CONFIG_JSON = json.dumps(TATA_CONFIG, ensure_ascii=False, indent=2)
 
+BENCHMARK_CONVERSATIONS = [
+    {
+        "id": "identity_mismatch_short",
+        "description": (
+            "Five message exchange where the greeting agent confirms the party is not the "
+            "customer and the terminal agent politely ends the call."
+        ),
+        "expected_terminal_state": "terminal_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": (
+                    "Hello, this is Neha from Tata Capital Housing Finance Limited. May I "
+                    "speak with Mr. Rahul Verma?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Rahul is not available, I am his cousin Ajay answering the call.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you for letting me know Ajay. I will reconnect with Rahul during "
+                    "business hours."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Sure, please try tomorrow morning.",
+            },
+            {
+                "from": "agent",
+                "text": "Thank you for your time, have a good day.",
+            },
+        ],
+    },
+    {
+        "id": "busy_customer_callback",
+        "description": (
+            "Eight turn conversation where the callback agent schedules a follow up within "
+            "business hours after verification."
+        ),
+        "expected_terminal_state": "callback_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": (
+                    "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. "
+                    "I hope I am speaking with you."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Yes this is Rahul, but I am driving right now.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you for confirming Rahul. I will call again when you are "
+                    "available. What time suits you tomorrow?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Please call after 3 pm once I reach home.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "I have scheduled a callback tomorrow between 3 and 4 pm within our "
+                    "business hours."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "That works for me, thank you.",
+            },
+            {
+                "from": "agent",
+                "text": "Appreciate your time Rahul, have a good day.",
+            },
+            {
+                "from": "customer",
+                "text": "Bye.",
+            },
+        ],
+    },
+    {
+        "id": "general_service_fallback",
+        "description": (
+            "Thirteen message service query that routes to the fallback agent for guidance "
+            "on statement downloads."
+        ),
+        "expected_terminal_state": "fallback_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": (
+                    "Good afternoon Rahul, this is Neha from Tata Capital Housing Finance "
+                    "Limited. May I confirm I am speaking with you?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Yes Neha, this is Rahul speaking.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you for confirming. You recently requested your statement of "
+                    "account. How may I assist you today?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": (
+                    "I only want to know how to download the annual interest certificate "
+                    "from the website."
+                ),
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "I will guide you through that. Please sign in to the Tata Capital "
+                    "Housing Finance portal and open the loan services section."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "I am logged in now. Where do I click next?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Select Documents, then choose Statement of Account and tap the "
+                    "interest certificate option."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "It is asking me to enable pop ups. Is that required?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Yes, please allow pop ups temporarily so the PDF can open, then you "
+                    "may save it to your device."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Will the statement update instantly?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "The document reflects your latest payment once the system syncs, "
+                    "which usually happens within ten minutes."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Great, thanks for the help.",
+            },
+            {
+                "from": "agent",
+                "text": "Happy to help Rahul. Is there anything else I can assist with?",
+            },
+        ],
+    },
+    {
+        "id": "foreclosure_uncertain_retention",
+        "description": (
+            "Twenty one message retention discussion where the customer is unsure about "
+            "foreclosure and the agent keeps the account engaged."
+        ),
+        "expected_terminal_state": "retention_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": (
+                    "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. "
+                    "Am I speaking with you directly?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Yes, Rahul here.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you Rahul. You had asked for your statement of account, so I "
+                    "wanted to check if there is any issue with your home loan."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": (
+                    "I might close the loan this year but I have not taken a final "
+                    "decision."
+                ),
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "I understand. Could you share what is prompting you to consider "
+                    "foreclosure so I can support you properly?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Mostly the interest feels high, and another bank called me.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "We value your relationship. Apart from the rate, is anything else "
+                    "causing inconvenience with the loan?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "No other issue, the service has been fine.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "That is good to hear. Would you be open to hearing options that can "
+                    "reduce the cost while keeping the loan with us?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Yes, what do you suggest?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "We can review a rate adjustment or a partial payment plan. May I know "
+                    "the rate the other bank offered?"
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "They mentioned around nine percent but nothing confirmed yet.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you. I will get our specialists to examine a competitive offer "
+                    "so you can compare properly."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "How long will that take?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "I will raise the request today and a colleague will return with "
+                    "options within two working days."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Alright, please do that.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "I have captured your concern as interest rate review and kept the "
+                    "loan active meanwhile."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Do I need to submit any documents?",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "No documents are required right now. Our team will guide you if any "
+                    "formalities are needed later."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "Okay, I will wait for the update.",
+            },
+            {
+                "from": "agent",
+                "text": (
+                    "Thank you Rahul. I will follow up once I receive the review. Please "
+                    "let me know if you need any other assistance."
+                ),
+            },
+            {
+                "from": "customer",
+                "text": "That is all for now.",
+            },
+        ],
+    },
+    {
+        "id": "rate_negotiation_detailed",
+        "description": "Thirty four message negotiation that keeps the customer engaged until the rate reduction is accepted.",
+        "expected_terminal_state": "rate_negotiation_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. May I confirm I am speaking with you?",
+            },
+            {"from": "customer", "text": "Yes Neha, Rahul speaking."},
+            {
+                "from": "agent",
+                "text": "Thank you for confirming. I noticed you requested your statement of account. What can I support you with today?",
+            },
+            {
+                "from": "customer",
+                "text": "I want to discuss my interest rate because it feels high.",
+            },
+            {
+                "from": "agent",
+                "text": "I understand. Could you share the rate you are currently paying?",
+            },
+            {
+                "from": "customer",
+                "text": "It is 9.75 percent according to the last statement.",
+            },
+            {
+                "from": "agent",
+                "text": "Thank you for sharing that. Are you considering an offer from another lender?",
+            },
+            {
+                "from": "customer",
+                "text": "Yes, another bank promised me 8.6 percent with quicker processing.",
+            },
+            {
+                "from": "agent",
+                "text": "I appreciate the detail. I will involve our rate specialist to review the account for you.",
+            },
+            {"from": "customer", "text": "Sure, please connect me."},
+            {
+                "from": "agent",
+                "text": "Hello Rahul, I handle rate reviews for Tata Capital. I will evaluate how we can ease your EMI.",
+            },
+            {"from": "customer", "text": "Thanks, I just want the EMI to go down."},
+            {
+                "from": "agent",
+                "text": "Completely understand. What EMI amount would feel comfortable for you each month?",
+            },
+            {
+                "from": "customer",
+                "text": "Something closer to fourteen thousand instead of fifteen thousand two hundred.",
+            },
+            {
+                "from": "agent",
+                "text": "Noted. With your payment history I can explore a revision near nine point one percent.",
+            },
+            {
+                "from": "customer",
+                "text": "That sounds better but can we do eight point eight percent?",
+            },
+            {
+                "from": "agent",
+                "text": "I want to keep the offer realistic so it stays approved. May I explain how nine point one percent helps you?",
+            },
+            {"from": "customer", "text": "Please explain."},
+            {
+                "from": "agent",
+                "text": "At nine point one percent your EMI reduces by about nine hundred rupees and you save six instalments overall.",
+            },
+            {
+                "from": "customer",
+                "text": "That is encouraging, but the other bank still sounds cheaper.",
+            },
+            {
+                "from": "agent",
+                "text": "Switching banks adds new processing fees and restarts your loan track. Staying here preserves your long record.",
+            },
+            {"from": "customer", "text": "True, but I need more relief every month."},
+            {
+                "from": "agent",
+                "text": "I can stretch to nine percent today as a special retention measure, with a switch fee of five thousand rupees.",
+            },
+            {"from": "customer", "text": "Does that switch fee apply immediately?"},
+            {
+                "from": "agent",
+                "text": "Yes, it is payable only if you accept the revised rate. We guide you through the payment.",
+            },
+            {"from": "customer", "text": "What if I prepay some amount instead?"},
+            {
+                "from": "agent",
+                "text": "Partial prepayment is possible, yet the nine percent rate keeps more cash available for your plans.",
+            },
+            {"from": "customer", "text": "Will the EMI change from the next cycle?"},
+            {
+                "from": "agent",
+                "text": "Once you confirm today, we raise the request and the revised EMI reflects within two working days.",
+            },
+            {
+                "from": "customer",
+                "text": "Alright, I am willing to accept nine percent.",
+            },
+            {
+                "from": "agent",
+                "text": "Excellent. I will submit the request and share the confirmation through our team within two days.",
+            },
+            {
+                "from": "customer",
+                "text": "Please ensure I receive written confirmation.",
+            },
+            {
+                "from": "agent",
+                "text": "Certainly, our email will outline the revised EMI and the applicable switch fee clearly.",
+            },
+            {
+                "from": "agent",
+                "text": "Thank you for choosing to stay with Tata Capital, Rahul.",
+            },
+        ],
+    },
+    {
+        "id": "topup_retention_long",
+        "description": "Fifty message retention conversation covering documentation, eligibility, and follow-up for a top-up request.",
+        "expected_terminal_state": "terminal_agent",
+        "messages": [
+            {
+                "from": "agent",
+                "text": "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. Am I speaking with you?",
+            },
+            {"from": "customer", "text": "Yes, Rahul here."},
+            {
+                "from": "agent",
+                "text": "Thank you for confirming. I saw your statement request and wanted to understand what support you need.",
+            },
+            {
+                "from": "customer",
+                "text": "I am planning major renovations and need additional funds.",
+            },
+            {
+                "from": "agent",
+                "text": "I appreciate the update. We can look at a top-up loan so you do not disrupt your current account.",
+            },
+            {
+                "from": "customer",
+                "text": "Great, is that possible on my existing loan?",
+            },
+            {
+                "from": "agent",
+                "text": "Yes, your profile allows us to evaluate a top-up without new paperwork from scratch.",
+            },
+            {"from": "customer", "text": "How much funding can I expect?"},
+            {
+                "from": "agent",
+                "text": "May I know the amount you are considering so I can check eligibility?",
+            },
+            {"from": "customer", "text": "I would like around eight lakh rupees."},
+            {
+                "from": "agent",
+                "text": "Given your repayment history, eight lakh looks feasible subject to income verification.",
+            },
+            {"from": "customer", "text": "What documents will you need from me?"},
+            {
+                "from": "agent",
+                "text": "Latest three salary slips, six months bank statements, and a signed consent form will be sufficient.",
+            },
+            {"from": "customer", "text": "Will this increase my EMI significantly?"},
+            {
+                "from": "agent",
+                "text": "At the current rate, the EMI would rise by about four thousand five hundred rupees.",
+            },
+            {"from": "customer", "text": "Can we spread it over a longer tenure?"},
+            {
+                "from": "agent",
+                "text": "Yes, we can extend the tenure by up to three years to keep the EMI manageable.",
+            },
+            {"from": "customer", "text": "How quickly can the funds be disbursed?"},
+            {
+                "from": "agent",
+                "text": "Once documents are shared, approval generally happens within two working days and disbursal follows immediately.",
+            },
+            {"from": "customer", "text": "Are there any processing charges?"},
+            {
+                "from": "agent",
+                "text": "A standard processing fee of one percent plus taxes applies, with no hidden charges.",
+            },
+            {"from": "customer", "text": "Will you need a fresh property valuation?"},
+            {
+                "from": "agent",
+                "text": "Not unless there have been major changes; the existing valuation from last year is still valid.",
+            },
+            {"from": "customer", "text": "Does this affect my original interest rate?"},
+            {
+                "from": "agent",
+                "text": "The top-up will follow a blended rate close to your current offer with periodic review.",
+            },
+            {"from": "customer", "text": "What if I partially prepay later?"},
+            {
+                "from": "agent",
+                "text": "You can prepay without penalty after six months, either part or full.",
+            },
+            {
+                "from": "customer",
+                "text": "Can the funds be credited directly to my contractor?",
+            },
+            {
+                "from": "agent",
+                "text": "We disburse to your registered bank account, and you can pay the contractor as planned.",
+            },
+            {
+                "from": "customer",
+                "text": "Will my credit score be impacted during assessment?",
+            },
+            {
+                "from": "agent",
+                "text": "We perform a soft enquiry that does not hurt your credit score.",
+            },
+            {
+                "from": "customer",
+                "text": "I changed jobs last month; is that an issue?",
+            },
+            {
+                "from": "agent",
+                "text": "Congratulations on the move. Please share the new appointment letter so we capture the updated income.",
+            },
+            {
+                "from": "customer",
+                "text": "My spouse also has income. Should we add her to the application?",
+            },
+            {
+                "from": "agent",
+                "text": "Including co-applicant income can improve approval limits; we can add her consent form.",
+            },
+            {
+                "from": "customer",
+                "text": "She prefers to review details later. Can you brief her in a follow-up call?",
+            },
+            {
+                "from": "agent",
+                "text": "Certainly, I will schedule a call with her tomorrow between eleven and noon.",
+            },
+            {
+                "from": "customer",
+                "text": "Please send me a summary of the requirements.",
+            },
+            {
+                "from": "agent",
+                "text": "I will send a checklist covering documents, timelines, and charges through our secure email.",
+            },
+            {
+                "from": "customer",
+                "text": "Can we aim to finish paperwork this weekend?",
+            },
+            {
+                "from": "agent",
+                "text": "I will arrange for a representative to collect documents on Saturday morning.",
+            },
+            {
+                "from": "customer",
+                "text": "Will there be any insurance bundled with the top-up?",
+            },
+            {
+                "from": "agent",
+                "text": "Insurance is optional; I can share product brochures for you to consider.",
+            },
+            {"from": "customer", "text": "Yes, send those along as well."},
+            {
+                "from": "agent",
+                "text": "Noted. Do you have any concerns about the current loan servicing?",
+            },
+            {
+                "from": "customer",
+                "text": "No, payments are regular; I only need funds for renovation.",
+            },
+            {
+                "from": "agent",
+                "text": "Thank you for confirming. I will record this as a top-up request and keep your loan active.",
+            },
+            {"from": "customer", "text": "Great, I look forward to the update."},
+            {"from": "customer", "text": "Thank you for the detailed explanation."},
+            {
+                "from": "agent",
+                "text": "Our team will contact you with next steps within two working days. Thank you for your time, have a good day.",
+            },
+        ],
+    },
+]
+
+for scenario in BENCHMARK_CONVERSATIONS:
+    scenario["length"] = len(scenario["messages"])
+
 
 def build_graph(config: Dict[str, Any]) -> StateGraph:
     """Create a LangGraph workflow from the JSON configuration."""
@@ -476,6 +1070,12 @@ async def main() -> None:
     graph = build_graph(config)
     workflow = graph.compile()
     dag = langgraph_to_tygent(graph)
+
+    print("\nAvailable benchmark conversations:")
+    for scenario in BENCHMARK_CONVERSATIONS:
+        print(
+            f"- {scenario['id']} ({scenario['length']} messages -> {scenario['expected_terminal_state']})"
+        )
 
     customer_message = "I am considering transferring my home loan to another bank."
 

@@ -159,6 +159,7 @@ See [`examples/langgraph_tata_capital_example.py`](examples/langgraph_tata_capit
 complete example that builds a LangGraph workflow from a JSON agent specification,
 uses OpenAI's ChatGPT model, and compares execution with and without Tygent to
 measure latency and token savings.
+It also provides curated benchmark conversations of varying lengths (5 to 50 messages) that map to each agent state so you can reproduce multi-step flows without crafting transcripts manually.
 
 #### Custom Multi-Agent System
 ```python
