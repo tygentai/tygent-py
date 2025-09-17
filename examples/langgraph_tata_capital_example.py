@@ -17,6 +17,7 @@ export OPENAI_API_KEY="your-key"
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import textwrap
 import time
@@ -415,8 +416,18 @@ def langgraph_to_tygent(graph: StateGraph) -> tg.DAG:
         tool_fn = getattr(state_spec, "runnable", state_spec)
 
         async def wrapper(inputs: Dict[str, Any], fn=tool_fn):
-            result = await fn(inputs)
-            return result
+            if hasattr(fn, "ainvoke"):
+                return await fn.ainvoke(inputs)
+
+            if callable(fn):
+                result = fn(inputs)
+                if inspect.isawaitable(result):
+                    return await result
+                return result
+
+            raise TypeError(
+                f"Unsupported runnable type for node '{node_name}': {type(fn)!r}"
+            )
 
         dag.add_node(tg.ToolNode(node_name, wrapper))
 
@@ -448,8 +459,9 @@ async def run_with_tygent(dag: tg.DAG, message: str) -> Dict[str, Any]:
     scheduler = tg.Scheduler(dag)
     start = time.perf_counter()
     outputs = await scheduler.execute({"message": message, "token_counts": []})
+    node_results = outputs.get("results", {})
     duration = time.perf_counter() - start
-    final_state = outputs.get("terminal_agent", {})
+    final_state = node_results.get("terminal_agent", {})
     tokens = sum(t.get("total_tokens", 0) for t in final_state.get("token_counts", []))
     print(f"Tygent execution time: {duration:.2f}s | Tokens: {tokens}")
     return final_state
