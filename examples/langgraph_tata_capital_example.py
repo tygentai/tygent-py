@@ -370,7 +370,7 @@ def build_graph(config: Dict[str, Any]) -> StateGraph:
     ):  # pragma: no cover - optional dependencies
         raise RuntimeError(OPTIONAL_DEPENDENCY_ERROR)
 
-    graph = StateGraph("tata_capital_home_loan")
+    graph = StateGraph(dict, name="tata_capital_home_loan")
 
     for agent_name, agent_conf in config["agents"].items():
         system_prompt = agent_conf["system_prompt"]
@@ -405,8 +405,10 @@ def langgraph_to_tygent(graph: StateGraph) -> tg.DAG:
     dag_name = getattr(graph, "name", "langgraph_workflow")
     dag = tg.DAG(dag_name)
 
+    sentinel_nodes = {"__start__", "__end__"}
+
     for node_name in graph.nodes:
-        if node_name == END:
+        if node_name in sentinel_nodes or node_name is END:
             continue
 
         state_spec = graph.nodes[node_name]
@@ -419,7 +421,14 @@ def langgraph_to_tygent(graph: StateGraph) -> tg.DAG:
         dag.add_node(tg.ToolNode(node_name, wrapper))
 
     for source, target in graph.edges:
-        if source == END or target == END:
+        if (
+            source in sentinel_nodes
+            or target in sentinel_nodes
+            or source is END
+            or target is END
+        ):
+            continue
+        if source not in dag.nodes or target not in dag.nodes:
             continue
         dag.add_edge(source, target)
 
