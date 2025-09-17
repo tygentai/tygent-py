@@ -19,9 +19,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import re
 import textwrap
 import time
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 
 try:  # pragma: no cover - optional dependencies
     from langchain_openai import ChatOpenAI
@@ -364,650 +365,780 @@ TATA_CONFIG_JSON = json.dumps(TATA_CONFIG, ensure_ascii=False, indent=2)
 
 BENCHMARK_CONVERSATIONS = [
     {
-        "id": "identity_mismatch_short",
-        "description": (
-            "Five message exchange where the greeting agent confirms the party is not the "
-            "customer and the terminal agent politely ends the call."
-        ),
-        "expected_terminal_state": "terminal_agent",
+        "description": "Identity refusal path that must end after confirming the caller is not the "
+        "customer.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "terminal_agent",
+        ],
+        "id": "identity_guardrail_exit",
         "messages": [
             {
-                "from": "agent",
-                "text": (
-                    "Hello, this is Neha from Tata Capital Housing Finance Limited. May I "
-                    "speak with Mr. Rahul Verma?"
-                ),
+                "from": "customer",
+                "text": "Hello, who is this calling me from Tata Capital?",
             },
             {
                 "from": "customer",
-                "text": "Rahul is not available, I am his cousin Ajay answering the call.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you for letting me know Ajay. I will reconnect with Rahul during "
-                    "business hours."
-                ),
+                "text": "I'm Ajay speaking for Rahul, he stepped out so talk to me instead.",
             },
             {
                 "from": "customer",
-                "text": "Sure, please try tomorrow morning.",
-            },
-            {
-                "from": "agent",
-                "text": "Thank you for your time, have a good day.",
+                "text": "Please just call him tomorrow around eleven in the morning.",
             },
         ],
+        "objectives": [
+            "Confirm whether the speaker matches the recorded borrower before sharing any "
+            "context.",
+            "Protect account privacy when identity does not match and close courteously.",
+        ],
+        "required_agents": ["greeting_agent", "terminal_agent"],
     },
     {
-        "id": "busy_customer_callback",
-        "description": (
-            "Eight turn conversation where the callback agent schedules a follow up within "
-            "business hours after verification."
-        ),
-        "expected_terminal_state": "callback_agent",
+        "description": "Busy customer highlights rate pressure and insists on a prepared callback.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "callback_agent",
+        ],
+        "id": "busy_rate_followup_callback",
         "messages": [
             {
-                "from": "agent",
-                "text": (
-                    "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. "
-                    "I hope I am speaking with you."
-                ),
+                "from": "customer",
+                "text": "Hi, I saw a missed call from Tata Capital, what's going on?",
             },
             {
                 "from": "customer",
-                "text": "Yes this is Rahul, but I am driving right now.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you for confirming Rahul. I will call again when you are "
-                    "available. What time suits you tomorrow?"
-                ),
+                "text": "Yes this is Rahul speaking but I am walking into a meeting.",
             },
             {
                 "from": "customer",
-                "text": "Please call after 3 pm once I reach home.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "I have scheduled a callback tomorrow between 3 and 4 pm within our "
-                    "business hours."
-                ),
+                "text": "My interest rate feels high, another bank promised lower so call later.",
             },
             {
                 "from": "customer",
-                "text": "That works for me, thank you.",
-            },
-            {
-                "from": "agent",
-                "text": "Appreciate your time Rahul, have a good day.",
+                "text": "Make sure the next call happens after 4 pm tomorrow.",
             },
             {
                 "from": "customer",
-                "text": "Bye.",
+                "text": "Please review my rate before the callback so we don't repeat details.",
+            },
+            {
+                "from": "customer",
+                "text": "Thanks, send me a reminder once the review is logged.",
             },
         ],
-    },
-    {
-        "id": "general_service_fallback",
-        "description": (
-            "Thirteen message service query that routes to the fallback agent for guidance "
-            "on statement downloads."
-        ),
-        "expected_terminal_state": "fallback_agent",
-        "messages": [
-            {
-                "from": "agent",
-                "text": (
-                    "Good afternoon Rahul, this is Neha from Tata Capital Housing Finance "
-                    "Limited. May I confirm I am speaking with you?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Yes Neha, this is Rahul speaking.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you for confirming. You recently requested your statement of "
-                    "account. How may I assist you today?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": (
-                    "I only want to know how to download the annual interest certificate "
-                    "from the website."
-                ),
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "I will guide you through that. Please sign in to the Tata Capital "
-                    "Housing Finance portal and open the loan services section."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "I am logged in now. Where do I click next?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Select Documents, then choose Statement of Account and tap the "
-                    "interest certificate option."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "It is asking me to enable pop ups. Is that required?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Yes, please allow pop ups temporarily so the PDF can open, then you "
-                    "may save it to your device."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Will the statement update instantly?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "The document reflects your latest payment once the system syncs, "
-                    "which usually happens within ten minutes."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Great, thanks for the help.",
-            },
-            {
-                "from": "agent",
-                "text": "Happy to help Rahul. Is there anything else I can assist with?",
-            },
+        "objectives": [
+            "Complete identity confirmation even when the customer is short on time.",
+            "Capture dissatisfaction with the current rate to seed a retention plan.",
+            "Schedule a business-hours callback with clear preparation notes.",
         ],
+        "required_agents": ["greeting_agent", "retention_agent", "callback_agent"],
     },
     {
-        "id": "foreclosure_uncertain_retention",
-        "description": (
-            "Twenty one message retention discussion where the customer is unsure about "
-            "foreclosure and the agent keeps the account engaged."
-        ),
-        "expected_terminal_state": "retention_agent",
-        "messages": [
-            {
-                "from": "agent",
-                "text": (
-                    "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. "
-                    "Am I speaking with you directly?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Yes, Rahul here.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you Rahul. You had asked for your statement of account, so I "
-                    "wanted to check if there is any issue with your home loan."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": (
-                    "I might close the loan this year but I have not taken a final "
-                    "decision."
-                ),
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "I understand. Could you share what is prompting you to consider "
-                    "foreclosure so I can support you properly?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Mostly the interest feels high, and another bank called me.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "We value your relationship. Apart from the rate, is anything else "
-                    "causing inconvenience with the loan?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "No other issue, the service has been fine.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "That is good to hear. Would you be open to hearing options that can "
-                    "reduce the cost while keeping the loan with us?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Yes, what do you suggest?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "We can review a rate adjustment or a partial payment plan. May I know "
-                    "the rate the other bank offered?"
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "They mentioned around nine percent but nothing confirmed yet.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you. I will get our specialists to examine a competitive offer "
-                    "so you can compare properly."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "How long will that take?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "I will raise the request today and a colleague will return with "
-                    "options within two working days."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Alright, please do that.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "I have captured your concern as interest rate review and kept the "
-                    "loan active meanwhile."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Do I need to submit any documents?",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "No documents are required right now. Our team will guide you if any "
-                    "formalities are needed later."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "Okay, I will wait for the update.",
-            },
-            {
-                "from": "agent",
-                "text": (
-                    "Thank you Rahul. I will follow up once I receive the review. Please "
-                    "let me know if you need any other assistance."
-                ),
-            },
-            {
-                "from": "customer",
-                "text": "That is all for now.",
-            },
+        "description": "Service navigation escalates into a retention discussion that must keep the loan "
+        "active.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "fallback_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "terminal_agent",
         ],
-    },
-    {
-        "id": "rate_negotiation_detailed",
-        "description": "Thirty four message negotiation that keeps the customer engaged until the rate reduction is accepted.",
-        "expected_terminal_state": "rate_negotiation_agent",
+        "id": "service_to_retention_bridge",
         "messages": [
             {
-                "from": "agent",
-                "text": "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. May I confirm I am speaking with you?",
-            },
-            {"from": "customer", "text": "Yes Neha, Rahul speaking."},
-            {
-                "from": "agent",
-                "text": "Thank you for confirming. I noticed you requested your statement of account. What can I support you with today?",
-            },
-            {
                 "from": "customer",
-                "text": "I want to discuss my interest rate because it feels high.",
-            },
-            {
-                "from": "agent",
-                "text": "I understand. Could you share the rate you are currently paying?",
-            },
-            {
-                "from": "customer",
-                "text": "It is 9.75 percent according to the last statement.",
-            },
-            {
-                "from": "agent",
-                "text": "Thank you for sharing that. Are you considering an offer from another lender?",
-            },
-            {
-                "from": "customer",
-                "text": "Yes, another bank promised me 8.6 percent with quicker processing.",
-            },
-            {
-                "from": "agent",
-                "text": "I appreciate the detail. I will involve our rate specialist to review the account for you.",
-            },
-            {"from": "customer", "text": "Sure, please connect me."},
-            {
-                "from": "agent",
-                "text": "Hello Rahul, I handle rate reviews for Tata Capital. I will evaluate how we can ease your EMI.",
-            },
-            {"from": "customer", "text": "Thanks, I just want the EMI to go down."},
-            {
-                "from": "agent",
-                "text": "Completely understand. What EMI amount would feel comfortable for you each month?",
-            },
-            {
-                "from": "customer",
-                "text": "Something closer to fourteen thousand instead of fifteen thousand two hundred.",
-            },
-            {
-                "from": "agent",
-                "text": "Noted. With your payment history I can explore a revision near nine point one percent.",
-            },
-            {
-                "from": "customer",
-                "text": "That sounds better but can we do eight point eight percent?",
-            },
-            {
-                "from": "agent",
-                "text": "I want to keep the offer realistic so it stays approved. May I explain how nine point one percent helps you?",
-            },
-            {"from": "customer", "text": "Please explain."},
-            {
-                "from": "agent",
-                "text": "At nine point one percent your EMI reduces by about nine hundred rupees and you save six instalments overall.",
-            },
-            {
-                "from": "customer",
-                "text": "That is encouraging, but the other bank still sounds cheaper.",
-            },
-            {
-                "from": "agent",
-                "text": "Switching banks adds new processing fees and restarts your loan track. Staying here preserves your long record.",
-            },
-            {"from": "customer", "text": "True, but I need more relief every month."},
-            {
-                "from": "agent",
-                "text": "I can stretch to nine percent today as a special retention measure, with a switch fee of five thousand rupees.",
-            },
-            {"from": "customer", "text": "Does that switch fee apply immediately?"},
-            {
-                "from": "agent",
-                "text": "Yes, it is payable only if you accept the revised rate. We guide you through the payment.",
-            },
-            {"from": "customer", "text": "What if I prepay some amount instead?"},
-            {
-                "from": "agent",
-                "text": "Partial prepayment is possible, yet the nine percent rate keeps more cash available for your plans.",
-            },
-            {"from": "customer", "text": "Will the EMI change from the next cycle?"},
-            {
-                "from": "agent",
-                "text": "Once you confirm today, we raise the request and the revised EMI reflects within two working days.",
-            },
-            {
-                "from": "customer",
-                "text": "Alright, I am willing to accept nine percent.",
-            },
-            {
-                "from": "agent",
-                "text": "Excellent. I will submit the request and share the confirmation through our team within two days.",
-            },
-            {
-                "from": "customer",
-                "text": "Please ensure I receive written confirmation.",
-            },
-            {
-                "from": "agent",
-                "text": "Certainly, our email will outline the revised EMI and the applicable switch fee clearly.",
-            },
-            {
-                "from": "agent",
-                "text": "Thank you for choosing to stay with Tata Capital, Rahul.",
-            },
-        ],
-    },
-    {
-        "id": "topup_retention_long",
-        "description": "Fifty message retention conversation covering documentation, eligibility, and follow-up for a top-up request.",
-        "expected_terminal_state": "terminal_agent",
-        "messages": [
-            {
-                "from": "agent",
-                "text": "Hello Rahul, this is Neha from Tata Capital Housing Finance Limited. Am I speaking with you?",
+                "text": "Good afternoon, can you explain why you called me about the statement?",
             },
             {"from": "customer", "text": "Yes, Rahul here."},
             {
-                "from": "agent",
-                "text": "Thank you for confirming. I saw your statement request and wanted to understand what support you need.",
+                "from": "customer",
+                "text": "I need help downloading my annual interest certificate from the portal.",
             },
             {
                 "from": "customer",
-                "text": "I am planning major renovations and need additional funds.",
-            },
-            {
-                "from": "agent",
-                "text": "I appreciate the update. We can look at a top-up loan so you do not disrupt your current account.",
+                "text": "I'm logged in but I can't find the document section anywhere.",
             },
             {
                 "from": "customer",
-                "text": "Great, is that possible on my existing loan?",
-            },
-            {
-                "from": "agent",
-                "text": "Yes, your profile allows us to evaluate a top-up without new paperwork from scratch.",
-            },
-            {"from": "customer", "text": "How much funding can I expect?"},
-            {
-                "from": "agent",
-                "text": "May I know the amount you are considering so I can check eligibility?",
-            },
-            {"from": "customer", "text": "I would like around eight lakh rupees."},
-            {
-                "from": "agent",
-                "text": "Given your repayment history, eight lakh looks feasible subject to income verification.",
-            },
-            {"from": "customer", "text": "What documents will you need from me?"},
-            {
-                "from": "agent",
-                "text": "Latest three salary slips, six months bank statements, and a signed consent form will be sufficient.",
-            },
-            {"from": "customer", "text": "Will this increase my EMI significantly?"},
-            {
-                "from": "agent",
-                "text": "At the current rate, the EMI would rise by about four thousand five hundred rupees.",
-            },
-            {"from": "customer", "text": "Can we spread it over a longer tenure?"},
-            {
-                "from": "agent",
-                "text": "Yes, we can extend the tenure by up to three years to keep the EMI manageable.",
-            },
-            {"from": "customer", "text": "How quickly can the funds be disbursed?"},
-            {
-                "from": "agent",
-                "text": "Once documents are shared, approval generally happens within two working days and disbursal follows immediately.",
-            },
-            {"from": "customer", "text": "Are there any processing charges?"},
-            {
-                "from": "agent",
-                "text": "A standard processing fee of one percent plus taxes applies, with no hidden charges.",
-            },
-            {"from": "customer", "text": "Will you need a fresh property valuation?"},
-            {
-                "from": "agent",
-                "text": "Not unless there have been major changes; the existing valuation from last year is still valid.",
-            },
-            {"from": "customer", "text": "Does this affect my original interest rate?"},
-            {
-                "from": "agent",
-                "text": "The top-up will follow a blended rate close to your current offer with periodic review.",
-            },
-            {"from": "customer", "text": "What if I partially prepay later?"},
-            {
-                "from": "agent",
-                "text": "You can prepay without penalty after six months, either part or full.",
+                "text": "The site wants me to enable pop ups, is that safe to do?",
             },
             {
                 "from": "customer",
-                "text": "Can the funds be credited directly to my contractor?",
-            },
-            {
-                "from": "agent",
-                "text": "We disburse to your registered bank account, and you can pay the contractor as planned.",
+                "text": "Also the statement request was because another bank pitched me a "
+                "transfer.",
             },
             {
                 "from": "customer",
-                "text": "Will my credit score be impacted during assessment?",
-            },
-            {
-                "from": "agent",
-                "text": "We perform a soft enquiry that does not hurt your credit score.",
+                "text": "They said they'd waive processing but I'm not sure about foreclosure "
+                "steps.",
             },
             {
                 "from": "customer",
-                "text": "I changed jobs last month; is that an issue?",
-            },
-            {
-                "from": "agent",
-                "text": "Congratulations on the move. Please share the new appointment letter so we capture the updated income.",
+                "text": "What happens to my EMI if I stay but make a partial prepayment?",
             },
             {
                 "from": "customer",
-                "text": "My spouse also has income. Should we add her to the application?",
-            },
-            {
-                "from": "agent",
-                "text": "Including co-applicant income can improve approval limits; we can add her consent form.",
+                "text": "How soon will your team get back with exact rates?",
             },
             {
                 "from": "customer",
-                "text": "She prefers to review details later. Can you brief her in a follow-up call?",
+                "text": "Alright, tell me if you need anything else from my side.",
             },
+        ],
+        "objectives": [
+            "Guide the customer through the portal steps for downloading the interest "
+            "certificate.",
+            "Surface the balance transfer risk behind the statement request and respond "
+            "empathetically.",
+            "Reassure the customer and keep the account engaged without promising foreclosure "
+            "steps.",
+        ],
+        "required_agents": [
+            "greeting_agent",
+            "fallback_agent",
+            "retention_agent",
+            "terminal_agent",
+        ],
+    },
+    {
+        "description": "Negotiation journey that should trigger rate tools and confirm the revised "
+        "offer.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "rate_negotiation_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "terminal_agent",
+        ],
+        "id": "rate_negotiation_tool_flow",
+        "messages": [
             {
-                "from": "agent",
-                "text": "Certainly, I will schedule a call with her tomorrow between eleven and noon.",
+                "from": "customer",
+                "text": "Hi, why did you call me after the statement request?",
+            },
+            {"from": "customer", "text": "Yes this is Rahul, go ahead."},
+            {
+                "from": "customer",
+                "text": "I'm planning to refinance if you can't match 8.6 percent.",
             },
             {
                 "from": "customer",
-                "text": "Please send me a summary of the requirements.",
-            },
-            {
-                "from": "agent",
-                "text": "I will send a checklist covering documents, timelines, and charges through our secure email.",
+                "text": "Currently I'm paying 9.75 percent and it's too high.",
             },
             {
                 "from": "customer",
-                "text": "Can we aim to finish paperwork this weekend?",
-            },
-            {
-                "from": "agent",
-                "text": "I will arrange for a representative to collect documents on Saturday morning.",
+                "text": "The competitor promised 8.6 percent and two free EMIs.",
             },
             {
                 "from": "customer",
-                "text": "Will there be any insurance bundled with the top-up?",
-            },
-            {
-                "from": "agent",
-                "text": "Insurance is optional; I can share product brochures for you to consider.",
-            },
-            {"from": "customer", "text": "Yes, send those along as well."},
-            {
-                "from": "agent",
-                "text": "Noted. Do you have any concerns about the current loan servicing?",
+                "text": "My EMI is roughly fifteen thousand two hundred every month.",
             },
             {
                 "from": "customer",
-                "text": "No, payments are regular; I only need funds for renovation.",
+                "text": "I need it closer to fourteen thousand else I'll switch.",
+            },
+            {"from": "customer", "text": "Can you confirm there won't be hidden fees?"},
+            {
+                "from": "customer",
+                "text": "What switch fee applies if I accept your offer?",
+            },
+            {"from": "customer", "text": "How soon does the EMI change after I agree?"},
+            {"from": "customer", "text": "What if I also prepay two lakh rupees now?"},
+            {
+                "from": "customer",
+                "text": "Do I get written confirmation about the new rate?",
             },
             {
-                "from": "agent",
-                "text": "Thank you for confirming. I will record this as a top-up request and keep your loan active.",
+                "from": "customer",
+                "text": "I won't pay more than nine percent so keep that in mind.",
             },
-            {"from": "customer", "text": "Great, I look forward to the update."},
-            {"from": "customer", "text": "Thank you for the detailed explanation."},
             {
-                "from": "agent",
-                "text": "Our team will contact you with next steps within two working days. Thank you for your time, have a good day.",
+                "from": "customer",
+                "text": "Okay, I'm ready to accept if the math works.",
             },
+            {
+                "from": "customer",
+                "text": "Send me a summary by email once you process it.",
+            },
+            {
+                "from": "customer",
+                "text": "Thanks, I expect the rate letter in two days.",
+            },
+        ],
+        "objectives": [
+            "Diagnose the customer's current EMI pain points and competitor quote.",
+            "Use the rate negotiation specialist to explore feasible reductions and disclose "
+            "switch fees.",
+            "Document acceptance of the negotiated rate and outline next steps for "
+            "confirmation.",
+        ],
+        "required_agents": [
+            "greeting_agent",
+            "retention_agent",
+            "rate_negotiation_agent",
+            "retention_agent",
+            "terminal_agent",
+        ],
+    },
+    {
+        "description": "Extended top-up exploration that needs coordination, documentation, and "
+        "follow-up planning.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "fallback_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "callback_agent",
+            "supervisor",
+            "terminal_agent",
+        ],
+        "id": "topup_multistage_support",
+        "messages": [
+            {
+                "from": "customer",
+                "text": "Hi, was this call about my statement request?",
+            },
+            {"from": "customer", "text": "Yes Rahul here."},
+            {
+                "from": "customer",
+                "text": "I need funds for home renovation so exploring a top-up.",
+            },
+            {
+                "from": "customer",
+                "text": "How much top-up can I expect on my current balance?",
+            },
+            {
+                "from": "customer",
+                "text": "My outstanding is about thirty two lakh with twenty one EMIs left.",
+            },
+            {"from": "customer", "text": "What documents should I arrange upfront?"},
+            {
+                "from": "customer",
+                "text": "Can my spouse be co-applicant even though she is self-employed?",
+            },
+            {
+                "from": "customer",
+                "text": "She wants a separate briefing, can you schedule something?",
+            },
+            {
+                "from": "customer",
+                "text": "I also need guidance on property valuation update.",
+            },
+            {"from": "customer", "text": "Will there be inspection charges this time?"},
+            {
+                "from": "customer",
+                "text": "How soon after document pickup will approval happen?",
+            },
+            {
+                "from": "customer",
+                "text": "I prefer disbursal directly to the contractor if possible.",
+            },
+            {
+                "from": "customer",
+                "text": "Please clarify if insurance add-ons are mandatory.",
+            },
+            {
+                "from": "customer",
+                "text": "I might also prepay a small portion next quarter.",
+            },
+            {
+                "from": "customer",
+                "text": "Do I need to sign any digital consent today?",
+            },
+            {
+                "from": "customer",
+                "text": "I'm travelling this weekend; collection needs to happen on Monday.",
+            },
+            {
+                "from": "customer",
+                "text": "Share a checklist via email so I don't miss anything.",
+            },
+            {
+                "from": "customer",
+                "text": "Let me know if you need salary slips from new employer.",
+            },
+            {"from": "customer", "text": "Also record that I changed jobs last month."},
+            {
+                "from": "customer",
+                "text": "Schedule follow-up to confirm spouse's consent tomorrow noon.",
+            },
+            {
+                "from": "customer",
+                "text": "Remind me about any processing fee before finalising.",
+            },
+            {
+                "from": "customer",
+                "text": "Thanks, ensure the loan stays active while this is evaluated.",
+            },
+        ],
+        "objectives": [
+            "Gather renovation funding requirements and assess top-up eligibility.",
+            "Explain documentation, co-applicant considerations, and processing timelines.",
+            "Schedule follow-ups for spouse briefing and document collection while keeping "
+            "the loan active.",
+        ],
+        "required_agents": [
+            "greeting_agent",
+            "retention_agent",
+            "fallback_agent",
+            "callback_agent",
+            "terminal_agent",
+        ],
+    },
+    {
+        "description": "Long-form retention journey that mixes service, rate, and planning requirements.",
+        "expected_agent_path": [
+            "supervisor",
+            "greeting_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "rate_negotiation_agent",
+            "supervisor",
+            "fallback_agent",
+            "supervisor",
+            "retention_agent",
+            "supervisor",
+            "callback_agent",
+            "supervisor",
+            "terminal_agent",
+        ],
+        "id": "extended_retention_journey",
+        "messages": [
+            {
+                "from": "customer",
+                "text": "Hi, I keep getting calls after requesting my statement, what's "
+                "happening?",
+            },
+            {"from": "customer", "text": "Yes I'm Rahul speaking."},
+            {
+                "from": "customer",
+                "text": "Before we start, can you quickly remind me who you are?",
+            },
+            {
+                "from": "customer",
+                "text": "I asked for the SOA because I'm considering selling the flat.",
+            },
+            {
+                "from": "customer",
+                "text": "Another bank is offering 8.5 percent plus a top-up, sounds tempting.",
+            },
+            {
+                "from": "customer",
+                "text": "My current rate is 9.75 percent and the EMI feels heavy.",
+            },
+            {
+                "from": "customer",
+                "text": "I also have a service ticket pending about payment receipt.",
+            },
+            {
+                "from": "customer",
+                "text": "Can you confirm the outstanding loan balance right now?",
+            },
+            {
+                "from": "customer",
+                "text": "Would partial prepayment reduce EMI or tenure more?",
+            },
+            {
+                "from": "customer",
+                "text": "If I stay, can you match the competitor rate quickly?",
+            },
+            {
+                "from": "customer",
+                "text": "What switch fee would I have to pay if you reduce the rate?",
+            },
+            {
+                "from": "customer",
+                "text": "Suppose I still sell the property, what documents would you need?",
+            },
+            {
+                "from": "customer",
+                "text": "My spouse wants to join the discussion later this evening.",
+            },
+            {
+                "from": "customer",
+                "text": "She prefers Hindi, can your team support that?",
+            },
+            {
+                "from": "customer",
+                "text": "I might need a callback tomorrow morning to include her.",
+            },
+            {
+                "from": "customer",
+                "text": "Meanwhile send me instructions to download the tax certificate.",
+            },
+            {
+                "from": "customer",
+                "text": "Also check if top-up eligibility still exists for renovation idea.",
+            },
+            {
+                "from": "customer",
+                "text": "If I accept a lower rate, how fast does EMI change?",
+            },
+            {
+                "from": "customer",
+                "text": "Record that I am not closing immediately, just evaluating options.",
+            },
+            {
+                "from": "customer",
+                "text": "I am also worried about foreclosure penalties if I proceed later.",
+            },
+            {
+                "from": "customer",
+                "text": "Can you route me to someone for general service questions as well?",
+            },
+            {
+                "from": "customer",
+                "text": "Remind me about any email I should use for escalation.",
+            },
+            {
+                "from": "customer",
+                "text": "Share the contact for top-up team if I go that route.",
+            },
+            {
+                "from": "customer",
+                "text": "Please summarise today's action plan before we disconnect.",
+            },
+            {
+                "from": "customer",
+                "text": "Thanks, I expect a proper follow-up agenda by tomorrow evening.",
+            },
+        ],
+        "objectives": [
+            "Maintain rapport while diagnosing multiple intents behind the statement request.",
+            "Coordinate rate review, service clarifications, and top-up exploration without "
+            "losing retention focus.",
+            "Produce a clear follow-up action plan covering callbacks, language preferences, "
+            "and documentation.",
+        ],
+        "required_agents": [
+            "greeting_agent",
+            "retention_agent",
+            "rate_negotiation_agent",
+            "fallback_agent",
+            "callback_agent",
+            "terminal_agent",
         ],
     },
 ]
 
+
+def _format_history(messages: Sequence[Dict[str, Any]]) -> str:
+    lines: List[str] = []
+    for turn in messages:
+        speaker = turn.get("from") or "agent"
+        if speaker == "agent" and turn.get("agent"):
+            speaker = str(turn["agent"])
+        elif speaker is None:
+            speaker = "agent"
+        text = turn.get("text", "").strip()
+        if text:
+            lines.append(f"{speaker}: {text}")
+    return "\n".join(lines)
+
+
+def _message_content(message: Any) -> str:
+    if message is None:
+        return ""
+    content = getattr(message, "content", message)
+    if isinstance(content, list):
+        return "".join(str(part) for part in content)
+    return str(content)
+
+
+def _append_usage(
+    token_counts: Sequence[Dict[str, Any]], actor: str, usage: Optional[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    tokens: List[Dict[str, Any]] = list(token_counts or [])
+    record: Dict[str, Any] = {"agent": actor}
+    if isinstance(usage, dict):
+        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+            if usage.get(key) is not None:
+                record[key] = usage[key]
+    tokens.append(record)
+    return tokens
+
+
+def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    matches = re.findall(r"\{.*\}", text, flags=re.DOTALL)
+    for candidate in matches:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _normalise_plan(
+    candidate: Any, previous: Optional[Sequence[Dict[str, Any]]] = None
+) -> List[Dict[str, Any]]:
+    if isinstance(candidate, list):
+        steps: List[Dict[str, Any]] = []
+        for idx, item in enumerate(candidate, start=1):
+            if isinstance(item, dict):
+                focus = item.get("focus") or item.get("action") or item.get("summary")
+                status = item.get("status") or item.get("state") or "pending"
+                step_number = item.get("step") or idx
+            else:
+                focus = str(item)
+                status = "pending"
+                step_number = idx
+            steps.append({"step": step_number, "focus": focus, "status": status})
+        return steps
+
+    if isinstance(candidate, dict) and "plan" in candidate:
+        return _normalise_plan(candidate.get("plan"), previous)
+
+    if candidate:
+        return [{"step": 1, "focus": str(candidate), "status": "pending"}]
+
+    return list(previous or [])
+
+
+def _stringify_plan(plan: Sequence[Dict[str, Any]]) -> str:
+    parts: List[str] = []
+    for step in plan:
+        if isinstance(step, dict):
+            label = step.get("focus") or ""
+            status = step.get("status") or "pending"
+            step_no = step.get("step")
+            if step_no is not None:
+                parts.append(f"{step_no}. {label} ({status})")
+            else:
+                parts.append(f"{label} ({status})")
+        else:
+            parts.append(str(step))
+    return " | ".join(parts)
+
+
+def _render_global_instructions(global_conf: Dict[str, Any]) -> str:
+    if not isinstance(global_conf, dict):
+        return ""
+
+    sections: List[str] = []
+    persona = global_conf.get("agent_persona")
+    if persona:
+        sections.append("Agent persona:\n" + persona)
+
+    language_rules = global_conf.get("language_rules") or {}
+    response_rules = language_rules.get("response_rules") or {}
+    if response_rules:
+        sections.append(
+            "Language response rules:\n"
+            + "\n".join(f"- {lang}: {rule}" for lang, rule in response_rules.items())
+        )
+
+    llm_rules = global_conf.get("llm_prompting_rules") or []
+    if llm_rules:
+        sections.append(
+            "LLM prompting rules:\n" + "\n".join(f"- {rule}" for rule in llm_rules)
+        )
+
+    response_guidelines = global_conf.get("response_guidelines") or []
+    if response_guidelines:
+        sections.append(
+            "Response guidelines:\n"
+            + "\n".join(f"- {rule}" for rule in response_guidelines)
+        )
+
+    return "\n\n".join(section for section in sections if section)
+
+
 for scenario in BENCHMARK_CONVERSATIONS:
-    scenario["length"] = len(scenario["messages"])
+    scenario["length"] = len(scenario["messages"]) * 2
+    if "expected_terminal_state" not in scenario:
+        path_hint = scenario.get("expected_agent_path") or []
+        if path_hint:
+            scenario["expected_terminal_state"] = path_hint[-1]
+        elif scenario.get("required_agents"):
+            scenario["expected_terminal_state"] = scenario["required_agents"][-1]
+        else:
+            scenario["expected_terminal_state"] = "terminal_agent"
 
 
 def build_graph(config: Dict[str, Any]) -> StateGraph:
-    """Create a LangGraph workflow from the JSON configuration."""
+    """Create a LangGraph workflow that plans and dispatches to specialists."""
 
-    if (
-        StateGraph is None or ChatOpenAI is None
-    ):  # pragma: no cover - optional dependencies
+    if StateGraph is None or ChatOpenAI is None:  # pragma: no cover - optional deps
         raise RuntimeError(OPTIONAL_DEPENDENCY_ERROR)
+
+    agent_configs = config.get("agents") or {}
+    if not agent_configs:
+        raise ValueError("Agent configuration is empty.")
+
+    default_model = config.get("default_model") or "gpt-4o-mini"
+    global_prompt = _render_global_instructions(config.get("global_instructions", {}))
+
+    supervisor_conf = config.get("supervisor_config") or {}
+    supervisor_model_name = (
+        supervisor_conf.get("model_name")
+        or supervisor_conf.get("metadata", {}).get("model_name")
+        or default_model
+    )
+    supervisor_llm = ChatOpenAI(model=supervisor_model_name, temperature=0)
+
+    agent_models: Dict[str, ChatOpenAI] = {}
+    for agent_name, agent_conf in agent_configs.items():
+        metadata = agent_conf.get("metadata") or {}
+        model_name = metadata.get("model_name") or default_model
+        agent_models[agent_name] = ChatOpenAI(model=model_name, temperature=0)
+
+    agent_names = list(agent_models.keys())
+    fallback_agent = supervisor_conf.get("fallback_agent")
+    if fallback_agent not in agent_models:
+        fallback_agent = agent_names[0]
+    initial_agent = supervisor_conf.get("initial_agent")
+    if initial_agent not in agent_models:
+        initial_agent = agent_names[0]
 
     graph = StateGraph(dict, name="tata_capital_home_loan")
 
-    for agent_name, agent_conf in config["agents"].items():
-        system_prompt = agent_conf["system_prompt"]
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    async def orchestrator(state: Dict[str, Any]) -> Dict[str, Any]:
+        history: List[Dict[str, Any]] = list(state.get("messages") or [])
+        latest_message = state.get("message", "")
+        if latest_message:
+            if (
+                not history
+                or history[-1].get("from") != "customer"
+                or history[-1].get("text") != latest_message
+            ):
+                history.append({"from": "customer", "text": latest_message})
 
-        async def agent_fn(
-            state: Dict[str, Any],
-            llm: ChatOpenAI = llm,
-            prompt: str = system_prompt,
-            agent: str = agent_name,
-        ) -> Dict[str, Any]:
-            history: List[Dict[str, str]] = state.get("messages", [])
-            history_lines = [
-                f"{turn.get('from', 'customer').capitalize()}: {turn.get('text', '')}"
-                for turn in history
-            ]
-            history_block = "\n".join(line for line in history_lines if line.strip())
+        objectives = list(state.get("objectives") or [])
+        required_agents = list(state.get("required_agents") or [])
+        expected_path = list(state.get("expected_agent_path") or [])
+        plan_state = _normalise_plan(state.get("plan"))
+        token_counts = list(state.get("token_counts") or [])
 
-            message = state.get("message", "")
-            prompt_parts = [prompt]
-            if history_block:
-                prompt_parts.append("Conversation so far:")
-                prompt_parts.append(history_block)
-            if message:
-                prompt_parts.append(f"Customer: {message}")
+        history_text = _format_history(history)
+        available_agents = ", ".join(sorted(agent_configs.keys()))
+        objectives_block = "\n".join(f"- {goal}" for goal in objectives)
+        required_block = (
+            ", ".join(required_agents) if required_agents else "None specified"
+        )
+        path_hint = ", ".join(expected_path) if expected_path else "Not specified"
+        plan_snapshot = (
+            json.dumps(plan_state, ensure_ascii=False, indent=2) if plan_state else "[]"
+        )
 
-            full_prompt = "\n\n".join(prompt_parts)
-            response = await llm.ainvoke(full_prompt)
-            usage = (
-                getattr(response, "response_metadata", {}).get("token_usage", {}) or {}
-            )
-            tokens: List[Dict[str, Any]] = list(state.get("token_counts", []))
-            tokens.append({"agent": agent, **usage})
-            return {"message": response.content, "token_counts": tokens}
+        supervisor_prompt_parts = [
+            supervisor_conf.get("system_prompt", ""),
+            f"Available specialist agents: {available_agents}",
+            f"Required specialist agents for this scenario: {required_block}",
+            f"Suggested agent path hints: {path_hint}",
+            "Primary objectives:\n" + objectives_block if objectives_block else "",
+            "Current plan snapshot:\n" + plan_snapshot,
+            "Conversation so far:\n" + (history_text or "No prior messages."),
+            f"Latest customer message: {latest_message or 'N/A'}",
+            (
+                "Respond with JSON containing keys 'plan', 'next_agent', and 'reasoning'. "
+                "The plan must include analytical steps beyond simply naming agents before delegating work."
+            ),
+        ]
+        supervisor_prompt = "\n\n".join(
+            part for part in supervisor_prompt_parts if part
+        )
 
-        graph.add_node(agent_name, agent_fn)
+        supervisor_response = await supervisor_llm.ainvoke(supervisor_prompt)
+        supervisor_text = _message_content(supervisor_response)
+        supervisor_usage = (
+            getattr(supervisor_response, "response_metadata", {}).get("token_usage", {})
+            or {}
+        )
+        token_counts = _append_usage(token_counts, "supervisor", supervisor_usage)
 
-    # Simple sequential flow for demonstration
-    graph.add_edge("greeting_agent", "retention_agent")
-    graph.add_edge("retention_agent", "terminal_agent")
-    graph.add_edge("terminal_agent", END)
-    graph.set_entry_point("greeting_agent")
+        payload = _extract_json_object(supervisor_text) or {}
+        plan_state = _normalise_plan(payload.get("plan"), plan_state)
+        selected_agent = payload.get("next_agent") or ""
+
+        if not selected_agent or selected_agent not in agent_models:
+            if not history or (
+                len(history) == 1
+                and history[-1].get("from") == "customer"
+                and history[-1].get("text") == latest_message
+            ):
+                selected_agent = initial_agent
+            else:
+                selected_agent = (
+                    next(
+                        (agent for agent in required_agents if agent in agent_models),
+                        None,
+                    )
+                    or fallback_agent
+                )
+
+        reasoning = payload.get("reasoning") or supervisor_text.strip()
+
+        agent_conf = agent_configs[selected_agent]
+        agent_llm = agent_models[selected_agent]
+        knowledge_base = agent_conf.get("knowledge_base") or []
+        knowledge_block = "\n".join(f"- {item}" for item in knowledge_base)
+        plan_block = (
+            json.dumps(plan_state, ensure_ascii=False, indent=2) if plan_state else "[]"
+        )
+
+        prompt_parts = [
+            global_prompt,
+            agent_conf.get("system_prompt", ""),
+            "Knowledge base:\n" + knowledge_block if knowledge_block else "",
+            "Shared plan snapshot:\n" + plan_block,
+            "Conversation so far:\n" + history_text if history_text else "",
+            f"Latest customer message: {latest_message}",
+            "Respond as the assigned specialist executing the next plan step while remaining concise and professional.",
+        ]
+        agent_prompt = "\n\n".join(part for part in prompt_parts if part)
+
+        agent_response = await agent_llm.ainvoke(agent_prompt)
+        agent_text = _message_content(agent_response)
+        agent_usage = (
+            getattr(agent_response, "response_metadata", {}).get("token_usage", {})
+            or {}
+        )
+        token_counts = _append_usage(token_counts, selected_agent, agent_usage)
+
+        history.append({"from": "agent", "agent": selected_agent, "text": agent_text})
+
+        return {
+            "message": agent_text,
+            "messages": history,
+            "token_counts": token_counts,
+            "plan": plan_state,
+            "active_agent": selected_agent,
+            "supervisor_reasoning": reasoning,
+            "objectives": objectives,
+            "required_agents": required_agents,
+            "expected_agent_path": expected_path,
+        }
+
+    graph.add_node("supervisor_orchestrator", orchestrator)
+    graph.add_edge("supervisor_orchestrator", END)
+    graph.set_entry_point("supervisor_orchestrator")
     return graph
 
 
@@ -1114,37 +1245,76 @@ async def _run_scenario(
     scenario: Dict[str, Any],
     runner: Callable[[Dict[str, Any], Dict[str, Any]], Awaitable[Dict[str, Any]]],
 ) -> Dict[str, Any]:
-    history: List[Dict[str, str]] = []
+    history: List[Dict[str, Any]] = []
     token_counts: List[Dict[str, Any]] = []
+    plan_snapshots: List[List[Dict[str, Any]]] = []
+    agent_path: List[str] = []
+    reasoning_trail: List[str] = []
     last_response = ""
-    customer_turns = 0
-    start = time.perf_counter()
+    shared_state: Dict[str, Any] = {}
 
-    for turn in scenario["messages"]:
-        role = turn.get("from")
+    for key in ("objectives", "required_agents", "expected_agent_path"):
+        if key in scenario:
+            shared_state[key] = list(scenario[key])
+
+    start_time = time.perf_counter()
+
+    for turn in scenario.get("messages", []):
+        role = (turn.get("from") or "customer").lower()
         text = turn.get("text", "")
 
-        if role == "customer":
-            customer_turns += 1
-            run_state = {
-                "messages": _copy_messages(history),
-                "message": text,
-                "token_counts": list(token_counts),
-            }
-            result = await runner(run_state, scenario)
-            token_counts = result.get("token_counts", token_counts)
-            last_response = result.get("message", last_response)
+        if role != "customer":
             history.append({"from": role, "text": text})
-        else:
-            history.append({"from": role or "agent", "text": text})
+            continue
 
-    duration = time.perf_counter() - start
+        history.append({"from": "customer", "text": text})
+        run_state: Dict[str, Any] = {
+            "messages": _copy_messages(history),
+            "message": text,
+            "token_counts": list(token_counts),
+        }
+        run_state.update(shared_state)
+
+        result = await runner(run_state, scenario)
+        token_counts = result.get("token_counts", token_counts)
+        last_response = result.get("message", last_response)
+        history = _copy_messages(result.get("messages", history))
+
+        plan_state = result.get("plan")
+        if plan_state is not None:
+            normalized_plan = _normalise_plan(plan_state)
+            plan_snapshots.append(normalized_plan)
+            shared_state["plan"] = normalized_plan
+
+        for key in ("objectives", "required_agents", "expected_agent_path"):
+            if key in result:
+                shared_state[key] = result[key]
+
+        agent_name = result.get("active_agent")
+        if agent_name:
+            agent_path.append(agent_name)
+
+        reasoning = result.get("supervisor_reasoning")
+        if reasoning:
+            reasoning_trail.append(reasoning)
+
+    duration = time.perf_counter() - start_time
     tokens = _total_tokens(token_counts)
+    customer_turns = sum(
+        1
+        for turn in scenario.get("messages", [])
+        if (turn.get("from") or "customer").lower() == "customer"
+    )
+
     return {
         "duration": duration,
         "tokens": tokens,
         "turns": customer_turns,
         "last_response": last_response,
+        "plan": plan_snapshots[-1] if plan_snapshots else [],
+        "plan_history": plan_snapshots,
+        "agents": agent_path,
+        "reasoning": reasoning_trail,
     }
 
 
@@ -1164,8 +1334,9 @@ async def main() -> None:
 
     for scenario in BENCHMARK_CONVERSATIONS:
         scenario_id = scenario["id"]
+        expected_terminal = scenario.get("expected_terminal_state", "N/A")
         print(
-            f"\nScenario: {scenario_id} ({scenario['length']} messages -> {scenario['expected_terminal_state']})"
+            f"\nScenario: {scenario_id} ({scenario['length']} messages -> {expected_terminal})"
         )
 
         standard_result = await _run_scenario(
@@ -1193,6 +1364,19 @@ async def main() -> None:
         print(f"  Speedup: {speedup:.2f}x | Token delta: {token_delta}")
         print(f"  Final response (standard): {standard_result['last_response']}")
         print(f"  Final response (tygent):   {tygent_result['last_response']}")
+        if standard_result.get("agents"):
+            print(f"  Standard agent path: {standard_result['agents']}")
+        if tygent_result.get("agents"):
+            print(f"  Tygent agent path:   {tygent_result['agents']}")
+        if standard_result.get("plan"):
+            print(
+                "  Plan snapshot (standard): "
+                + _stringify_plan(standard_result["plan"])
+            )
+        if tygent_result.get("plan"):
+            print(
+                "  Plan snapshot (tygent):   " + _stringify_plan(tygent_result["plan"])
+            )
 
         benchmark_rows.append(
             {
@@ -1201,6 +1385,8 @@ async def main() -> None:
                 "tygent": tygent_result,
                 "speedup": speedup,
                 "token_delta": token_delta,
+                "standard_agents": standard_result.get("agents", []),
+                "tygent_agents": tygent_result.get("agents", []),
             }
         )
 
