@@ -21,7 +21,7 @@ import inspect
 import json
 import textwrap
 import time
-from typing import Any, Dict
+from typing import Any, Awaitable, Callable, Dict, List
 
 try:  # pragma: no cover - optional dependencies
     from langchain_openai import ChatOpenAI
@@ -971,15 +971,35 @@ def build_graph(config: Dict[str, Any]) -> StateGraph:
         system_prompt = agent_conf["system_prompt"]
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-        async def agent_fn(state: Dict[str, Any], llm=llm, prompt=system_prompt):
+        async def agent_fn(
+            state: Dict[str, Any],
+            llm: ChatOpenAI = llm,
+            prompt: str = system_prompt,
+            agent: str = agent_name,
+        ) -> Dict[str, Any]:
+            history: List[Dict[str, str]] = state.get("messages", [])
+            history_lines = [
+                f"{turn.get('from', 'customer').capitalize()}: {turn.get('text', '')}"
+                for turn in history
+            ]
+            history_block = "\n".join(line for line in history_lines if line.strip())
+
             message = state.get("message", "")
-            full_prompt = f"{prompt}\nCustomer: {message}" if message else prompt
+            prompt_parts = [prompt]
+            if history_block:
+                prompt_parts.append("Conversation so far:")
+                prompt_parts.append(history_block)
+            if message:
+                prompt_parts.append(f"Customer: {message}")
+
+            full_prompt = "\n\n".join(prompt_parts)
             response = await llm.ainvoke(full_prompt)
-            usage = getattr(response, "response_metadata", {}).get("token_usage", {})
-            next_message = response.content
-            tokens = state.get("token_counts", [])
-            tokens.append(usage)
-            return {"message": next_message, "token_counts": tokens}
+            usage = (
+                getattr(response, "response_metadata", {}).get("token_usage", {}) or {}
+            )
+            tokens: List[Dict[str, Any]] = list(state.get("token_counts", []))
+            tokens.append({"agent": agent, **usage})
+            return {"message": response.content, "token_counts": tokens}
 
         graph.add_node(agent_name, agent_fn)
 
@@ -1040,25 +1060,92 @@ def langgraph_to_tygent(graph: StateGraph) -> tg.DAG:
     return dag
 
 
-async def run_without_tygent(workflow: Any, message: str) -> Dict[str, Any]:
-    start = time.perf_counter()
-    state = await workflow.ainvoke({"message": message, "token_counts": []})
-    duration = time.perf_counter() - start
-    tokens = sum(t.get("total_tokens", 0) for t in state.get("token_counts", []))
-    print(f"Standard execution time: {duration:.2f}s | Tokens: {tokens}")
-    return state
+def _copy_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return [dict(turn) for turn in messages]
 
 
-async def run_with_tygent(dag: tg.DAG, message: str) -> Dict[str, Any]:
-    scheduler = tg.Scheduler(dag)
-    start = time.perf_counter()
-    outputs = await scheduler.execute({"message": message, "token_counts": []})
+def _total_tokens(usages: List[Dict[str, Any]]) -> int:
+    total = 0
+    for usage in usages:
+        if not isinstance(usage, dict):
+            continue
+        total_tokens = usage.get("total_tokens")
+        if total_tokens is None:
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            completion_tokens = usage.get("completion_tokens", 0)
+            total_tokens = prompt_tokens + completion_tokens
+        total += int(total_tokens or 0)
+    return total
+
+
+def _select_node_result(
+    outputs: Dict[str, Any], scenario: Dict[str, Any]
+) -> Dict[str, Any]:
     node_results = outputs.get("results", {})
+    if not node_results:
+        return {}
+
+    target = scenario.get("expected_terminal_state")
+    if target and target in node_results:
+        return node_results[target]
+
+    if "terminal_agent" in node_results:
+        return node_results["terminal_agent"]
+
+    # Fallback to the last produced node output
+    last_key = next(reversed(node_results))
+    return node_results[last_key]
+
+
+async def _execute_standard(
+    workflow: Any, state: Dict[str, Any], _: Dict[str, Any]
+) -> Dict[str, Any]:
+    return await workflow.ainvoke(state)
+
+
+async def _execute_with_tygent(
+    scheduler: tg.Scheduler, state: Dict[str, Any], scenario: Dict[str, Any]
+) -> Dict[str, Any]:
+    outputs = await scheduler.execute(state)
+    return _select_node_result(outputs, scenario)
+
+
+async def _run_scenario(
+    scenario: Dict[str, Any],
+    runner: Callable[[Dict[str, Any], Dict[str, Any]], Awaitable[Dict[str, Any]]],
+) -> Dict[str, Any]:
+    history: List[Dict[str, str]] = []
+    token_counts: List[Dict[str, Any]] = []
+    last_response = ""
+    customer_turns = 0
+    start = time.perf_counter()
+
+    for turn in scenario["messages"]:
+        role = turn.get("from")
+        text = turn.get("text", "")
+
+        if role == "customer":
+            customer_turns += 1
+            run_state = {
+                "messages": _copy_messages(history),
+                "message": text,
+                "token_counts": list(token_counts),
+            }
+            result = await runner(run_state, scenario)
+            token_counts = result.get("token_counts", token_counts)
+            last_response = result.get("message", last_response)
+            history.append({"from": role, "text": text})
+        else:
+            history.append({"from": role or "agent", "text": text})
+
     duration = time.perf_counter() - start
-    final_state = node_results.get("terminal_agent", {})
-    tokens = sum(t.get("total_tokens", 0) for t in final_state.get("token_counts", []))
-    print(f"Tygent execution time: {duration:.2f}s | Tokens: {tokens}")
-    return final_state
+    tokens = _total_tokens(token_counts)
+    return {
+        "duration": duration,
+        "tokens": tokens,
+        "turns": customer_turns,
+        "last_response": last_response,
+    }
 
 
 async def main() -> None:
@@ -1070,24 +1157,74 @@ async def main() -> None:
     graph = build_graph(config)
     workflow = graph.compile()
     dag = langgraph_to_tygent(graph)
+    scheduler = tg.Scheduler(dag)
 
-    print("\nAvailable benchmark conversations:")
+    print("\nRunning benchmark conversations:")
+    benchmark_rows = []
+
     for scenario in BENCHMARK_CONVERSATIONS:
+        scenario_id = scenario["id"]
         print(
-            f"- {scenario['id']} ({scenario['length']} messages -> {scenario['expected_terminal_state']})"
+            f"\nScenario: {scenario_id} ({scenario['length']} messages -> {scenario['expected_terminal_state']})"
         )
 
-    customer_message = "I am considering transferring my home loan to another bank."
+        standard_result = await _run_scenario(
+            scenario,
+            lambda state, sc, wf=workflow: _execute_standard(wf, state, sc),
+        )
+        tygent_result = await _run_scenario(
+            scenario,
+            lambda state, sc, sched=scheduler: _execute_with_tygent(sched, state, sc),
+        )
 
-    print("Running workflow without Tygent...")
-    standard_state = await run_without_tygent(workflow, customer_message)
+        speedup = (
+            standard_result["duration"] / tygent_result["duration"]
+            if tygent_result["duration"]
+            else float("inf")
+        )
+        token_delta = standard_result["tokens"] - tygent_result["tokens"]
 
-    print("\nRunning workflow with Tygent...")
-    tygent_state = await run_with_tygent(dag, customer_message)
+        print(
+            f"  Standard: {standard_result['duration']:.2f}s | Tokens: {standard_result['tokens']} | Turns: {standard_result['turns']}"
+        )
+        print(
+            f"  Tygent:   {tygent_result['duration']:.2f}s | Tokens: {tygent_result['tokens']} | Turns: {tygent_result['turns']}"
+        )
+        print(f"  Speedup: {speedup:.2f}x | Token delta: {token_delta}")
+        print(f"  Final response (standard): {standard_result['last_response']}")
+        print(f"  Final response (tygent):   {tygent_result['last_response']}")
 
-    print("\nFinal responses:")
-    print(f"Standard: {standard_state.get('message')}")
-    print(f"Tygent:   {tygent_state.get('message')}")
+        benchmark_rows.append(
+            {
+                "scenario": scenario_id,
+                "standard": standard_result,
+                "tygent": tygent_result,
+                "speedup": speedup,
+                "token_delta": token_delta,
+            }
+        )
+
+    if benchmark_rows:
+        total_standard_time = sum(row["standard"]["duration"] for row in benchmark_rows)
+        total_tygent_time = sum(row["tygent"]["duration"] for row in benchmark_rows)
+        total_standard_tokens = sum(row["standard"]["tokens"] for row in benchmark_rows)
+        total_tygent_tokens = sum(row["tygent"]["tokens"] for row in benchmark_rows)
+        overall_speedup = (
+            total_standard_time / total_tygent_time
+            if total_tygent_time
+            else float("inf")
+        )
+        overall_token_delta = total_standard_tokens - total_tygent_tokens
+        print("\nBenchmark summary:")
+        print(
+            f"  Aggregate standard time: {total_standard_time:.2f}s | tokens: {total_standard_tokens}"
+        )
+        print(
+            f"  Aggregate Tygent time:   {total_tygent_time:.2f}s | tokens: {total_tygent_tokens}"
+        )
+        print(
+            f"  Overall speedup: {overall_speedup:.2f}x | Token delta: {overall_token_delta}"
+        )
 
 
 if __name__ == "__main__":
