@@ -47,7 +47,16 @@ def parse_plan(plan: Dict[str, Any]) -> Tuple[DAG, List[str]]:
     for step in steps:
         node_name = step["name"]
         func = step.get("func", lambda _inputs: None)
-        node = ToolNode(node_name, func)
+        token_cost = int(step.get("token_cost", 0)) if step.get("token_cost") is not None else 0
+        latency_estimate = step.get("latency_estimate")
+        metadata = step.get("metadata")
+        node = ToolNode(
+            node_name,
+            func,
+            token_cost=token_cost,
+            latency_estimate=latency_estimate,
+            metadata=metadata,
+        )
         dag.add_node(node)
         if step.get("critical"):
             critical.append(node_name)

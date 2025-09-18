@@ -54,6 +54,37 @@ class TestAccelerate(unittest.TestCase):
         result = asyncio.run(add_one(4))
         self.assertEqual(result, 5)
 
+    def test_accelerate_service_plan(self):
+        service_plan = {
+            "name": "service",
+            "steps": [
+                {
+                    "name": "discover",
+                    "kind": "llm",
+                    "prompt": "Look up {topic}",
+                    "metadata": {"provider": "echo"},
+                    "links": ["https://cache"],
+                },
+                {
+                    "name": "summary",
+                    "kind": "llm",
+                    "prompt": "Summarize {discover[result][prompt]}",
+                    "dependencies": ["discover"],
+                    "metadata": {"provider": "echo"},
+                },
+            ],
+            "prefetch": {"links": ["https://cache"]},
+        }
+
+        accel = accelerate(service_plan)
+
+        async def run():
+            result = await accel.execute({"topic": "availability"})
+            return result["results"]["summary"]["result"]
+
+        output = asyncio.run(run())
+        self.assertIn("availability", output["prompt"])
+
     def test_accelerate_in_running_loop(self):
         @accelerate
         async def add_one(x):

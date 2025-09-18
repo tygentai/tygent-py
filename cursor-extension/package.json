@@ -1,0 +1,32 @@
+{
+  "name": "tygent-cursor-agent-converter",
+  "displayName": "Tygent Agent Converter for Cursor",
+  "description": "Cursor command to patch Python agents with tygent.install().",
+  "version": "0.0.1",
+  "publisher": "tygent",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:tygent.enableAgentCursor"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tygent.enableAgentCursor",
+        "title": "Tygent: Enable Agent (Cursor)",
+        "category": "Tygent"
+      }
+    ]
+  },
+  "keywords": ["cursor", "tygent", "agent"],
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/node": "^14.0.0",
+    "typescript": "^4.4.0"
+  }
+}
