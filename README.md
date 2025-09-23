@@ -335,6 +335,18 @@ tygent-py/
 - **Linting**: Black formatting, flake8 compliance
 - **Documentation**: Detailed docstrings and examples
 
+## VS Code Extension
+
+The `vscode-extension` folder provides a simple Visual Studio Code extension. Use the **Tygent: Enable Agent** command to insert `tygent.install()` into the active Python file, converting existing agent implementations to use Tygent automatically.
+
+## Cursor Extension
+
+The `cursor-extension` folder ships a Cursor editor extension with the **Tygent: Enable Agent (Cursor)** command. It adds `tygent.install()` (and the import if missing) to the current Python file while respecting shebang headers, giving Cursor users the same one-click conversion workflow.
+
+## Editor Extension Guide
+
+Need a step-by-step walkthrough for packaging and using the extensions in your environment? Read the [customer extension README](docs/editor-extensions/README.md) for installation, usage, and benchmarking instructions.
+
 ## License
 
 Creative Commons Attribution-NonCommercial 4.0 International License.
