@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from .dag import DAG
 from .nodes import LLMNode, ToolNode
 from .plan_parser import parse_plan
+from .prefetch import prefetch_many
 from .scheduler import Scheduler
 
 
@@ -37,7 +38,16 @@ def accelerate(
 
     # Directly parse plan dictionaries
     if isinstance(func_or_agent, dict) and "steps" in func_or_agent:
-        dag, critical = parse_plan(func_or_agent)
+        plan_dict = func_or_agent
+        steps = plan_dict.get("steps", [])
+        if steps and "func" not in steps[0]:
+            from .service_bridge import ServicePlanBuilder
+
+            builder = ServicePlanBuilder()
+            service_plan = builder.build(plan_dict)
+            dag, critical = parse_plan(service_plan.plan)
+            return _PlanExecutor(dag, critical, prefetch_links=service_plan.prefetch_links)
+        dag, critical = parse_plan(plan_dict)
         return _PlanExecutor(dag, critical)
 
     # Handle different framework types
@@ -106,12 +116,24 @@ def accelerate(
 class _PlanExecutor:
     """Execute a parsed plan using :class:`Scheduler`."""
 
-    def __init__(self, dag: DAG, critical: List[str]) -> None:
+    def __init__(
+        self,
+        dag: DAG,
+        critical: List[str],
+        *,
+        prefetch_links: Optional[List[str]] = None,
+    ) -> None:
         self.scheduler = Scheduler(dag)
         self.scheduler.priority_nodes = critical
+        self.prefetch_links = prefetch_links or []
 
     async def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.scheduler.execute(inputs)
+        enriched_inputs = dict(inputs)
+        if self.prefetch_links:
+            prefetched = await prefetch_many(self.prefetch_links)
+            if prefetched:
+                enriched_inputs.setdefault("prefetch", prefetched)
+        return await self.scheduler.execute(enriched_inputs)
 
     __call__ = execute
 

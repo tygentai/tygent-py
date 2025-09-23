@@ -212,9 +212,41 @@ class Scheduler:
                 waiting_nodes[node_name] = list(node.dependencies)
 
         # Process nodes until all are executed
+        priority_node_set = set(self.priority_nodes or [])
+
+        def _priority_tuple(node_name: str) -> tuple:
+            node = dag.getNode(node_name)
+            metadata = getattr(node, "metadata", {}) if node else {}
+            tags_value = metadata.get("tags", [])
+            if isinstance(tags_value, list):
+                tags = tags_value
+            elif tags_value:
+                tags = [tags_value]
+            else:
+                tags = []
+            level = metadata.get("level", 0)
+            is_redundancy = "redundancy" in tags or bool(metadata.get("generated"))
+            is_critical = (
+                node_name in priority_node_set
+                or "critical" in tags
+                or metadata.get("is_critical") is True
+            )
+            cp_score = critical_path.get(node_name, 0)
+            try:
+                level_value = float(level)
+            except (TypeError, ValueError):
+                level_value = 0.0
+            return (
+                0 if is_critical else 1,
+                0 if not is_redundancy else 1,
+                -cp_score,
+                level_value,
+                node_name,
+            )
+
         while ready_nodes or waiting_nodes:
-            # Prioritize nodes by critical-path latency
-            ready_nodes.sort(key=lambda n: critical_path.get(n, 0), reverse=True)
+            # Prioritize nodes using criticality, redundancy, and graph metrics
+            ready_nodes.sort(key=_priority_tuple)
 
             # Execute nodes in parallel
             current_batch = ready_nodes[: self.max_parallel_nodes]
@@ -351,6 +383,9 @@ class Scheduler:
             else:
                 # No mapping, include all fields
                 node_inputs.update(dep_output)
+
+            # Expose dependency outputs under their step name for prompt templating
+            node_inputs.setdefault(dep_name, dep_output)
 
         await self._run_hooks("before_execute", node, node_inputs, None)
         if self._stop:
