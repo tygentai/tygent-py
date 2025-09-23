@@ -136,6 +136,18 @@ class ServicePlanBuilder:
     ) -> Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]:
         provider = str(metadata.get("provider", "echo"))
 
+        delay_value = metadata.get("simulated_duration")
+        if delay_value is None:
+            delay_value = metadata.get("latency_estimate")
+        if delay_value is None:
+            delay_value = metadata.get("estimated_duration")
+        try:
+            delay_seconds = max(float(delay_value), 0.0)
+        except (TypeError, ValueError):
+            delay_seconds = 0.01 if delay_value is None else 0.0
+        if delay_value is None and delay_seconds == 0.0:
+            delay_seconds = 0.01
+
         async def _runner(inputs: Dict[str, Any]) -> Dict[str, Any]:
             rendered_prompt = _render_prompt(prompt_template, inputs)
             payload: Dict[str, Any] = {
@@ -146,6 +158,8 @@ class ServicePlanBuilder:
                 "kind": kind,
                 "metadata": dict(metadata),
             }
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
             if kind == "llm":
                 result = await self.registry.call(
                     provider,
@@ -243,6 +257,7 @@ async def execute_service_plan(
     inputs: Dict[str, Any],
     *,
     registry: Optional[LLMRuntimeRegistry] = None,
+    max_parallel_nodes: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Prefetch plan resources, construct a scheduler, and execute."""
 
@@ -258,5 +273,7 @@ async def execute_service_plan(
 
     dag, critical = parse_plan(service_plan.plan)
     scheduler = Scheduler(dag)
+    if max_parallel_nodes is not None:
+        scheduler.max_parallel_nodes = max_parallel_nodes
     scheduler.priority_nodes = critical
     return await scheduler.execute(enriched_inputs)

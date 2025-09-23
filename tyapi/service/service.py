@@ -46,6 +46,7 @@ class PlanConversionService:
             "options": options,
             "tygent_plan": tygent_plan,
             "prefetch": tygent_plan.get("prefetch"),
+            "spec": spec,
         }
 
     def _resolve_ingestor(
