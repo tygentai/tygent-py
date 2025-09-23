@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024">
+  <defs>
+    <linearGradient id="grad-unstructured" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fceda5" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#f3d984" stop-opacity="0.6" />
+    </linearGradient>
+    <linearGradient id="grad-structured" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f7ecb8" />
+      <stop offset="100%" stop-color="#ecd37c" />
+    </linearGradient>
+    <pattern id="grid" width="120" height="120" patternUnits="userSpaceOnUse">
+      <rect width="120" height="120" fill="none" stroke="#e9cb72" stroke-width="2" opacity="0.18" />
+      <g fill="#e9cb72" opacity="0.28">
+        <circle cx="0" cy="0" r="2" />
+        <circle cx="120" cy="0" r="2" />
+        <circle cx="0" cy="120" r="2" />
+        <circle cx="120" cy="120" r="2" />
+      </g>
+    </pattern>
+    <clipPath id="structured-clip">
+      <rect x="720" y="120" width="520" height="680" rx="12" />
+    </clipPath>
+  </defs>
+  <rect width="1440" height="1024" fill="url(#grad-unstructured)" />
+  <g opacity="0.32">
+    <path d="M140 220c-50 60-60 150-10 210 70 90 210 100 300 40s120-170 60-250c-60-80-200-110-260-30z" fill="#f6e3a4" />
+    <path d="M250 640c-80 40-110 130-70 200 40 70 150 120 230 80 80-40 110-150 70-220-40-70-150-100-230-60z" fill="#f7e9b9" />
+    <path d="M520 360c-40 30-40 100 10 140 50 40 130 40 170 0 40-40 30-110-20-140s-120-30-160 0z" fill="#f1dda2" />
+  </g>
+  <g clip-path="url(#structured-clip)">
+    <rect x="720" y="120" width="520" height="680" fill="url(#grid)" />
+    <rect x="720" y="120" width="520" height="680" fill="url(#grad-structured)" opacity="0.8" />
+    <g stroke="#c8a24b" stroke-width="3" fill="none" opacity="0.35">
+      <path d="M760 180h440" />
+      <path d="M760 260h440" />
+      <path d="M760 340h440" />
+      <path d="M760 420h440" />
+      <path d="M760 500h440" />
+      <path d="M760 580h440" />
+      <path d="M760 660h440" />
+    </g>
+    <g fill="#e9b65d" opacity="0.62">
+      <rect x="780" y="200" width="120" height="60" rx="6" />
+      <rect x="940" y="200" width="120" height="60" rx="6" />
+      <rect x="1100" y="200" width="120" height="60" rx="6" />
+      <rect x="780" y="320" width="210" height="60" rx="6" />
+      <rect x="1010" y="320" width="210" height="60" rx="6" />
+      <rect x="780" y="440" width="450" height="120" rx="10" />
+      <rect x="780" y="600" width="300" height="60" rx="6" />
+      <rect x="1100" y="600" width="130" height="60" rx="6" />
+    </g>
+    <g stroke="#b7923a" stroke-width="4" fill="none" opacity="0.5">
+      <path d="M770 210l-140 -70" />
+      <path d="M930 210l-280 -120" />
+      <path d="M1090 210l-420 -80" />
+      <path d="M770 340l-320 -120" />
+      <path d="M1010 340l-480 -40" />
+      <path d="M780 470l-360 -20" />
+      <path d="M1180 470l-520 -10" />
+      <path d="M980 630l-420 40" />
+    </g>
+  </g>
+</svg>

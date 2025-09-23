@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Tygent Plan Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f9f2d8;
+        color: #4a3c13;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background: #f9f2d8 url('assets/tygent-background.svg') center / cover no-repeat fixed;
+      }
+      header {
+        padding: 24px 32px 16px;
+        border-bottom: 2px solid rgba(187, 154, 59, 0.28);
+        background: rgba(248, 241, 214, 0.9);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header span.badge {
+        padding: 4px 10px;
+        border-radius: 0;
+        background: rgba(224, 191, 87, 0.18);
+        border: 1px solid rgba(196, 160, 68, 0.32);
+        color: #7c6320;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      main {
+        padding: 24px 32px 48px;
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      }
+      section.panel {
+        background: rgba(247, 240, 214, 0.9);
+        border: 2px solid rgba(170, 143, 68, 0.32);
+        border-radius: 0;
+        padding: 24px;
+        box-shadow: 0 20px 36px -24px rgba(142, 121, 62, 0.28);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      section h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      label {
+        font-size: 13px;
+        color: rgba(84, 69, 25, 0.82);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      input[type="password"],
+      input[type="text"],
+      input[type="email"],
+      textarea,
+      select {
+        font-family: "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        background: rgba(248, 242, 221, 0.96);
+        border: 2px solid rgba(184, 154, 79, 0.42);
+        border-radius: 0;
+        padding: 10px 12px;
+        color: #55461b;
+        font-size: 13px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      input[type="password"]:focus,
+      input[type="text"]:focus,
+      input[type="email"]:focus,
+      textarea:focus,
+      select:focus {
+        outline: none;
+        border-color: rgba(176, 141, 58, 0.85);
+        box-shadow: 0 0 0 4px rgba(218, 190, 121, 0.2);
+      }
+      textarea {
+        min-height: 280px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      select {
+        width: fit-content;
+      }
+      button {
+        align-self: flex-start;
+        border: none;
+        border-radius: 0;
+        padding: 12px 22px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        background: linear-gradient(135deg, #e8d296, #d9bf78);
+        color: #4f4015;
+        box-shadow: 0 8px 18px -12px rgba(130, 110, 54, 0.3);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 22px -14px rgba(130, 110, 54, 0.38);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+      button:disabled:hover {
+        box-shadow: none;
+        transform: none;
+      }
+      pre#response {
+        background: rgba(244, 238, 214, 0.95);
+        border-radius: 0;
+        border: 1px solid rgba(170, 136, 63, 0.3);
+        padding: 16px;
+        margin: 0;
+        font-family: "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+        color: #5e4e1c;
+        overflow-x: auto;
+        min-height: 280px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .status {
+        min-height: 20px;
+        font-size: 13px;
+        color: rgba(103, 81, 28, 0.68);
+      }
+      .status.error {
+        color: #a95c1d;
+      }
+      .request-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .inline-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: flex-end;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .divider {
+        border: 0;
+        border-top: 1px solid rgba(160, 178, 255, 0.22);
+        margin: 12px 0;
+      }
+      .account-panel {
+        grid-column: 1 / -1;
+      }
+      .simulation-copy {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: rgba(84, 69, 25, 0.78);
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .metric-card {
+        background: rgba(246, 240, 215, 0.88);
+        border: 1px solid rgba(168, 138, 63, 0.3);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .metric-card .label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(103, 81, 28, 0.62);
+      }
+      .metric-card .value {
+        font-size: 20px;
+        font-weight: 600;
+        color: #4a3c13;
+      }
+      .metric-card .detail {
+        font-size: 12px;
+        color: rgba(90, 72, 22, 0.7);
+      }
+      button.ghost {
+        background: linear-gradient(135deg, #eedba7, #e0c789);
+        color: #4f4015;
+        box-shadow: 0 12px 24px -16px rgba(150, 122, 58, 0.34);
+      }
+      button.ghost:hover {
+        box-shadow: 0 14px 28px -18px rgba(150, 122, 58, 0.4);
+      }
+      footer {
+        padding: 24px 32px;
+        font-size: 12px;
+        color: rgba(108, 84, 29, 0.6);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>
+        Tygent Service Console
+        <span class="badge">Preview</span>
+      </h1>
+    </header>
+    <main>
+      <section class="panel account-panel" aria-label="account management">
+        <h2>Account &amp; API Keys</h2>
+        <div class="stack">
+          <div class="inline-fields">
+            <label>
+              Account Name
+              <input type="text" id="registerName" placeholder="Acme Corp">
+            </label>
+            <label>
+              Contact Email
+              <input type="email" id="registerEmail" placeholder="ops@example.com">
+            </label>
+            <label>
+              Initial Key Label
+              <input type="text" id="registerLabel" placeholder="default">
+            </label>
+            <button id="registerButton" type="button">Register Account</button>
+          </div>
+        </div>
+        <hr class="divider">
+        <div class="stack">
+          <div class="inline-fields">
+            <label>
+              Account
+              <select id="accountSelect">
+                <option value="">Select account…</option>
+              </select>
+            </label>
+            <label>
+              Account ID
+              <input type="text" id="accountId" placeholder="acct_1234">
+            </label>
+            <label>
+              New Key Label
+              <input type="text" id="generateLabel" placeholder="integration">
+            </label>
+            <button id="generateButton" type="button">Generate API Key</button>
+            <button id="refreshAccountsButton" class="ghost" type="button">Refresh Accounts</button>
+          </div>
+        </div>
+        <div class="status" id="accountStatus"></div>
+      </section>
+      <section class="panel" aria-label="request builder">
+        <h2>Request</h2>
+        <label>
+          API Key (X-Tygent-Key)
+          <input type="password" id="apiKey" placeholder="Paste generated key" autocomplete="off">
+        </label>
+        <div class="request-controls">
+          <label>
+            Redundancy Mode
+            <select id="redundancyMode">
+              <option value="inline" selected>inline</option>
+              <option value="steps">steps</option>
+              <option value="off">off</option>
+            </select>
+          </label>
+          <button id="sendButton" type="button">Send Conversion Request</button>
+        </div>
+        <label>
+          JSON Payload
+          <textarea id="payload" spellcheck="false"></textarea>
+        </label>
+        <div class="status" id="status"></div>
+      </section>
+      <section class="panel" aria-label="response viewer">
+        <h2>Response</h2>
+        <pre id="response" aria-live="polite">Ready.</pre>
+      </section>
+      <section class="panel sim-panel" aria-label="performance simulator">
+        <h2>Performance Simulation</h2>
+        <p class="simulation-copy">
+          Compare a sequential baseline against Tygent's parallel execution depth. We approximate the
+          original plan as running each step back-to-back, and use the Tygent critical path length to
+          estimate parallel completion time.
+        </p>
+        <div class="metrics-grid" id="simulationResult">
+          <div class="metric-card">
+            <span class="label">Status</span>
+            <span class="value">Awaiting data</span>
+            <span class="detail">Run a conversion to preview timing improvements.</span>
+          </div>
+        </div>
+        <button id="benchmarkButton" type="button" disabled>Run Benchmark</button>
+      </section>
+    </main>
+    <footer>
+      Submit a plan payload to receive an enriched Tygent plan with graph analysis and prefetch hints.
+    </footer>
+    <script>
+      const payloadField = document.getElementById('payload');
+      const responseField = document.getElementById('response');
+      const statusField = document.getElementById('status');
+      const redundancyField = document.getElementById('redundancyMode');
+      const apiKeyField = document.getElementById('apiKey');
+      const sendButton = document.getElementById('sendButton');
+      const simulationResult = document.getElementById('simulationResult');
+      const benchmarkButton = document.getElementById('benchmarkButton');
+
+      const accountStatusField = document.getElementById('accountStatus');
+      const registerNameField = document.getElementById('registerName');
+      const registerEmailField = document.getElementById('registerEmail');
+      const registerLabelField = document.getElementById('registerLabel');
+      const registerButton = document.getElementById('registerButton');
+      const accountSelect = document.getElementById('accountSelect');
+      const accountIdField = document.getElementById('accountId');
+      const generateLabelField = document.getElementById('generateLabel');
+      const generateButton = document.getElementById('generateButton');
+      const refreshAccountsButton = document.getElementById('refreshAccountsButton');
+
+      const examplePayload = {
+        ingestor: { name: 'generic' },
+        plan: {
+          steps: [
+            {
+              name: 'discover',
+              prompt: 'Collect the top three public references for the product launch timeline.',
+              deps: [],
+              metadata: { simulated_duration: 0.06 }
+            },
+            {
+              name: 'collect',
+              prompt: 'Gather internal roll-out notes from the enablement team.',
+              deps: [],
+              metadata: { simulated_duration: 0.06 }
+            },
+            {
+              name: 'analyze',
+              prompt: 'Summarize the launch milestones and highlight blockers.',
+              deps: ['discover', 'collect'],
+              links: ['https://example.com/ref'],
+              metadata: { simulated_duration: 0.08 }
+            },
+            {
+              name: 'executive_summary',
+              prompt: 'Draft a concise update for leadership using the analysis.',
+              deps: ['analyze'],
+              metadata: { simulated_duration: 0.05 }
+            }
+          ]
+        },
+        options: {
+          redundancy_mode: 'inline'
+        }
+      };
+
+      payloadField.value = JSON.stringify(examplePayload, null, 2);
+
+      function showStatus(text, isError = false) {
+        statusField.textContent = text;
+        statusField.classList.toggle('error', Boolean(isError));
+      }
+
+      function showAccountStatus(text, isError = false) {
+        accountStatusField.textContent = text;
+        accountStatusField.classList.toggle('error', Boolean(isError));
+      }
+
+      let lastRequestBody = null;
+      let lastConversionResult = null;
+      let lastBenchmarkResult = null;
+
+      function formatDuration(ms) {
+        if (!Number.isFinite(ms)) {
+          return 'n/a';
+        }
+        if (ms >= 1000) {
+          return `${(ms / 1000).toFixed(2)}s`;
+        }
+        return `${ms.toFixed(0)}ms`;
+      }
+
+      function parseAndNormalizePayload() {
+        let payload;
+        try {
+          payload = JSON.parse(payloadField.value);
+        } catch (err) {
+          showStatus('Payload must be valid JSON.', true);
+          responseField.textContent = String(err);
+          lastRequestBody = null;
+          lastConversionResult = null;
+          lastBenchmarkResult = null;
+          renderBenchmark();
+          return null;
+        }
+
+        if (typeof payload !== 'object' || Array.isArray(payload)) {
+          showStatus('Payload must be a JSON object.', true);
+          responseField.textContent = 'Expected an object at the top level.';
+          lastRequestBody = null;
+          lastConversionResult = null;
+          lastBenchmarkResult = null;
+          renderBenchmark();
+          return null;
+        }
+
+        if (!payload.options || typeof payload.options !== 'object') {
+          payload.options = {};
+        }
+        payload.options.redundancy_mode = redundancyField.value;
+        return payload;
+      }
+
+      function renderBenchmark() {
+        if (!lastConversionResult) {
+          simulationResult.innerHTML = `
+            <div class="metric-card">
+              <span class="label">Status</span>
+              <span class="value">Awaiting conversion</span>
+              <span class="detail">Run a plan conversion first.</span>
+            </div>
+          `;
+          benchmarkButton.disabled = true;
+          return;
+        }
+
+        if (!lastBenchmarkResult) {
+          simulationResult.innerHTML = `
+            <div class="metric-card">
+              <span class="label">Status</span>
+              <span class="value">Ready to benchmark</span>
+              <span class="detail">Click “Run Benchmark” to measure actual execution time.</span>
+            </div>
+          `;
+          benchmarkButton.disabled = false;
+          return;
+        }
+
+        const conversion = lastBenchmarkResult.conversion || lastConversionResult;
+        const execution = lastBenchmarkResult.execution || {};
+        const baseline = execution.baseline || {};
+        const accelerated = execution.tygent || execution.accelerated || {};
+
+        const baselineMs = typeof baseline.duration_ms === 'number' ? baseline.duration_ms : 0;
+        const acceleratedMs = typeof accelerated.duration_ms === 'number' ? accelerated.duration_ms : 0;
+        const speedup = acceleratedMs > 0 ? baselineMs / acceleratedMs : 0;
+        const improvementMs = baselineMs - acceleratedMs;
+        const improvementPct = baselineMs > 0 ? (improvementMs / baselineMs) * 100 : 0;
+
+        const meta = conversion && conversion.tygent_plan && conversion.tygent_plan.meta ? conversion.tygent_plan.meta : {};
+        const stepCount = conversion && conversion.tygent_plan && Array.isArray(conversion.tygent_plan.steps)
+          ? conversion.tygent_plan.steps.length
+          : baseline.step_count ?? accelerated.step_count ?? 'n/a';
+        const criticalLength = meta.critical_path_length || (Array.isArray(meta.critical_path) ? meta.critical_path.length : null);
+        const maxParallel = meta.max_parallelism ?? null;
+        const waveCount = Array.isArray(meta.waves) ? meta.waves.length : null;
+        const prefetchLinks = conversion && conversion.prefetch && Array.isArray(conversion.prefetch.links)
+          ? conversion.prefetch.links.length
+          : 0;
+
+        simulationResult.innerHTML = `
+          <div class="metric-card">
+            <span class="label">Sequential baseline</span>
+            <span class="value">${formatDuration(baselineMs)}</span>
+            <span class="detail">${baseline.step_count ?? stepCount ?? 'n/a'} steps executed back-to-back.</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Tygent runtime</span>
+            <span class="value">${formatDuration(acceleratedMs)}</span>
+            <span class="detail">Critical path ${criticalLength ?? 'n/a'} • max parallelism ${maxParallel ?? 'n/a'}.</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Speedup</span>
+            <span class="value">${speedup ? `${speedup.toFixed(2)}×` : 'n/a'}</span>
+            <span class="detail">${improvementMs >= 0 ? 'Saved' : 'Added'} ${formatDuration(Math.abs(improvementMs))} (${improvementPct.toFixed(1)}%).</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Plan insights</span>
+            <span class="value">${stepCount ?? 'n/a'} steps</span>
+            <span class="detail">${waveCount ?? 0} waves • ${prefetchLinks} prefetch link${prefetchLinks === 1 ? '' : 's'}.</span>
+          </div>
+        `;
+
+        benchmarkButton.disabled = false;
+      }
+
+      async function refreshAccounts({ notify = true } = {}) {
+        if (notify) {
+          showAccountStatus('Loading accounts…');
+        }
+
+        try {
+          const res = await fetch('/v1/accounts');
+          if (!res.ok) {
+            throw new Error(`Failed to load accounts (${res.status})`);
+          }
+          const payload = await res.json();
+          const accounts = Array.isArray(payload.accounts) ? payload.accounts : [];
+
+          accountSelect.innerHTML = '<option value="">Select account…</option>';
+          for (const account of accounts) {
+            const option = document.createElement('option');
+            option.value = account.account_id;
+            option.textContent = `${account.name || 'Unnamed'} (${account.account_id})`;
+            accountSelect.appendChild(option);
+          }
+
+          const existing = accountIdField.value.trim();
+          if (existing) {
+            const match = accounts.find((acct) => acct.account_id === existing);
+            accountSelect.value = match ? existing : '';
+          }
+
+          if (notify) {
+            showAccountStatus(
+              accounts.length
+                ? `Loaded ${accounts.length} account${accounts.length === 1 ? '' : 's'}.`
+                : 'No accounts registered yet.'
+            );
+          }
+
+          return accounts;
+        } catch (error) {
+          console.error(error);
+          showAccountStatus('Unable to load accounts. See console for details.', true);
+          return [];
+        }
+      }
+
+      async function registerAccount() {
+        const name = registerNameField.value.trim();
+        const email = registerEmailField.value.trim();
+        const label = registerLabelField.value.trim() || 'default';
+
+        if (!name || !email) {
+          showAccountStatus('Provide both name and email to register an account.', true);
+          return;
+        }
+
+        showAccountStatus('Registering account…');
+
+        try {
+          const res = await fetch('/v1/accounts/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name, email, label }),
+          });
+
+          const text = await res.text();
+          let payload;
+          try {
+            payload = JSON.parse(text);
+          } catch (_) {
+            payload = null;
+          }
+
+          if (!res.ok || !payload || !payload.account || !payload.api_key) {
+            const message = (payload && (payload.detail || payload.message)) || text || 'Registration failed.';
+            showAccountStatus(message, true);
+            return;
+          }
+
+          registerNameField.value = '';
+          registerEmailField.value = '';
+          registerLabelField.value = '';
+
+          accountIdField.value = payload.account.account_id;
+          apiKeyField.value = payload.api_key;
+          apiKeyField.focus();
+          apiKeyField.select();
+
+          await refreshAccounts({ notify: false });
+          accountSelect.value = payload.account.account_id;
+
+          showAccountStatus(`Account ${payload.account.account_id} registered. API key copied below.`);
+        } catch (error) {
+          console.error(error);
+          showAccountStatus('Registration failed. See console for details.', true);
+        }
+      }
+
+      async function generateApiKey() {
+        const selected = accountSelect.value.trim();
+        const manual = accountIdField.value.trim();
+        const accountId = manual || selected;
+        const label = generateLabelField.value.trim() || 'default';
+
+        if (!accountId) {
+          showAccountStatus('Select or enter an account to generate a key.', true);
+          return;
+        }
+
+        showAccountStatus('Generating API key…');
+
+        try {
+          const res = await fetch(`/v1/accounts/${encodeURIComponent(accountId)}/keys`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ label }),
+          });
+
+          const text = await res.text();
+          let payload;
+          try {
+            payload = JSON.parse(text);
+          } catch (_) {
+            payload = null;
+          }
+
+          if (!res.ok || !payload || !payload.api_key) {
+            const message = (payload && (payload.detail || payload.message)) || text || 'Unable to generate API key.';
+            showAccountStatus(message, true);
+            return;
+          }
+
+          generateLabelField.value = '';
+          const resolvedAccountId = payload.account_id || accountId;
+          accountIdField.value = resolvedAccountId;
+          accountSelect.value = resolvedAccountId;
+          apiKeyField.value = payload.api_key;
+          apiKeyField.focus();
+          apiKeyField.select();
+
+          showAccountStatus(`Generated API key labelled "${payload.label}" for ${payload.account_id}.`);
+        } catch (error) {
+          console.error(error);
+          showAccountStatus('Unable to generate API key. See console for details.', true);
+        }
+      }
+
+      async function sendRequest() {
+        showStatus('Sending request…');
+        responseField.textContent = '…';
+
+        const apiKey = apiKeyField.value.trim();
+        if (!apiKey) {
+          showStatus('Provide an API key generated above.', true);
+          responseField.textContent = 'Missing API key.';
+          return;
+        }
+
+        const payload = parseAndNormalizePayload();
+        if (!payload) {
+          return;
+        }
+
+        lastRequestBody = JSON.parse(JSON.stringify(payload));
+        lastBenchmarkResult = null;
+        renderBenchmark();
+
+        try {
+          const res = await fetch('/v1/plan/convert', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Tygent-Key': apiKey
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const text = await res.text();
+          let parsed;
+          try {
+            parsed = JSON.parse(text);
+          } catch (_) {
+            parsed = null;
+          }
+
+          if (!res.ok || !parsed) {
+            showStatus(`Request failed: ${res.status} ${res.statusText}`, true);
+            responseField.textContent = parsed ? JSON.stringify(parsed, null, 2) : text;
+            lastConversionResult = null;
+            lastBenchmarkResult = null;
+            renderBenchmark();
+            return;
+          }
+
+          showStatus('Conversion successful.');
+          responseField.textContent = JSON.stringify(parsed, null, 2);
+          lastConversionResult = parsed;
+          lastBenchmarkResult = null;
+          renderBenchmark();
+        } catch (error) {
+          console.error(error);
+          showStatus('Network error, see console for details.', true);
+          responseField.textContent = String(error);
+          lastConversionResult = null;
+          lastBenchmarkResult = null;
+          renderBenchmark();
+        }
+      }
+
+      async function runBenchmark() {
+        const apiKey = apiKeyField.value.trim();
+        if (!apiKey) {
+          showStatus('Provide an API key generated above.', true);
+          return;
+        }
+
+        const payload = parseAndNormalizePayload();
+        if (!payload) {
+          return;
+        }
+
+        lastRequestBody = JSON.parse(JSON.stringify(payload));
+        showStatus('Running benchmark…');
+        simulationResult.innerHTML = `
+          <div class="metric-card">
+            <span class="label">Status</span>
+            <span class="value">Benchmark in progress…</span>
+            <span class="detail">Executing sequential and Tygent runs.</span>
+          </div>
+        `;
+        benchmarkButton.disabled = true;
+
+        try {
+          const res = await fetch('/v1/plan/benchmark', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Tygent-Key': apiKey
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const text = await res.text();
+          let parsed;
+          try {
+            parsed = JSON.parse(text);
+          } catch (_) {
+            parsed = null;
+          }
+
+          if (!res.ok || !parsed) {
+            const message = parsed && (parsed.detail || parsed.message) ? parsed.detail || parsed.message : text || 'Benchmark failed.';
+            showStatus(`Benchmark failed: ${res.status} ${res.statusText}`, true);
+            simulationResult.innerHTML = `
+              <div class="metric-card">
+                <span class="label">Status</span>
+                <span class="value">Benchmark failed</span>
+                <span class="detail">${message}</span>
+              </div>
+            `;
+            lastBenchmarkResult = null;
+            renderBenchmark();
+            return;
+          }
+
+          lastConversionResult = parsed.conversion || lastConversionResult;
+          lastBenchmarkResult = parsed;
+          showStatus('Benchmark completed.');
+          renderBenchmark();
+        } catch (error) {
+          console.error(error);
+          showStatus('Benchmark request failed. See console for details.', true);
+          simulationResult.innerHTML = `
+            <div class="metric-card">
+              <span class="label">Status</span>
+              <span class="value">Benchmark failed</span>
+              <span class="detail">${String(error)}</span>
+            </div>
+          `;
+          lastBenchmarkResult = null;
+          renderBenchmark();
+        }
+      }
+
+      benchmarkButton.addEventListener('click', () => {
+        runBenchmark();
+      });
+
+      sendButton.addEventListener('click', () => {
+        sendRequest();
+      });
+
+      registerButton.addEventListener('click', () => {
+        registerAccount();
+      });
+
+      generateButton.addEventListener('click', () => {
+        generateApiKey();
+      });
+
+      refreshAccountsButton.addEventListener('click', () => {
+        refreshAccounts();
+      });
+
+      accountSelect.addEventListener('change', () => {
+        accountIdField.value = accountSelect.value;
+      });
+
+      accountIdField.addEventListener('input', () => {
+        const value = accountIdField.value.trim();
+        accountSelect.value = value;
+      });
+
+      payloadField.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          event.preventDefault();
+          sendRequest();
+        }
+      });
+
+      renderBenchmark();
+      refreshAccounts();
+    </script>
+  </body>
+</html>

@@ -10,7 +10,7 @@ This folder contains a minimal SaaS-style service that ingests plans produced by
 
 ## Quickstart (Local)
 1. Ensure dependencies are installed (`pip install -e .[dev]` if available).
-2. Create an account and API key:
+2. Create an account and API key (via CLI or the HTTP endpoints below):
    ```bash
    python -m tyapi.service.cli register --name "Acme" --email "ops@acme.test"
    python -m tyapi.service.cli configure-ingestor --account <account_id> --name generic
@@ -37,6 +37,25 @@ This folder contains a minimal SaaS-style service that ingests plans produced by
            "options": {"redundancy_mode": "inline"}
          }'
    ```
+
+## Service Console UI
+- After `serve` is running, open <http://127.0.0.1:8080/> to launch a lightweight console. You can register accounts, mint API keys, paste them into the request form, tweak the JSON payload, and send conversion requests without leaving the browser.
+- The interface uses the Tygent Saffron palette with a custom “unstructured ➜ structured” background illustration so the transition from raw plans to structured execution is immediately visible.
+- A performance simulator estimates sequential versus critical-path runtimes so you can demonstrate theoretical speedups after each conversion.
+- The console automatically injects the selected redundancy mode and pretty-prints responses so you can inspect Tygent plan metadata quickly during development.
+
+## HTTP API Overview
+- `POST /v1/accounts/register` — create a tenant account and return the first API key. Example:
+  ```bash
+  curl -X POST http://127.0.0.1:8080/v1/accounts/register \
+    -H "Content-Type: application/json" \
+    -d '{"name": "Acme", "email": "ops@acme.test", "label": "default"}'
+  ```
+- `GET /v1/accounts` — list registered accounts and hashed keys so you can pick an account id in other requests.
+- `POST /v1/accounts/<account_id>/keys` — mint an additional API key for an existing account.
+- `GET /v1/catalog` — inspect registered plan ingestors.
+- `POST /v1/plan/convert` — submit framework plans and receive enriched Tygent plans.
+- `POST /v1/plan/benchmark` — run the sequential baseline and the accelerated Tygent execution, returning wall-clock durations and step-level outputs.
 
 ## Deploying to the Cloud
 - Package the application (e.g. `uvicorn tyapi.service.app:create_app --factory`).
