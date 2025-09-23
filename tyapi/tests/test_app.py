@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -74,7 +73,6 @@ def test_convert_requires_plan_or_spec(service_bundle) -> None:
     account, _, service, _ = service_bundle
     with pytest.raises(ValueError):
         asyncio.run(service.convert(account))
-
 
 def test_account_registration_and_key_routes(tmp_path) -> None:
     async def scenario() -> None:
