@@ -1,372 +1,228 @@
-# Tygent Python - Speed & Efficiency Layer for AI Agents
+# Tygent (Python)
 
+Tygent reshapes unstructured LLM agent plans into structured execution blueprints so downstream tools know which context to fetch and when to run each step. Typed execution graphs[^dag] are the core structure the runtime emits, giving you explicit dependencies, metadata, and prefetch hints that the scheduler can consume for reliable, optimised execution.
 [![PyPI version](https://badge.fury.io/py/tygent.svg)](https://badge.fury.io/py/tygent)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
-Transform your existing AI agents into high-performance engines with intelligent parallel execution and optimized scheduling. Tygent aims to speed up workflows and reduce costs with **no code changes required**.
+## Highlights
+- **Structured planner** – normalise free-form plans or framework payloads into typed steps with dependencies, tags, and prefetch directives (`parse_plan`, `ServicePlanBuilder`), exporting context fabric descriptors compatible with Recontext.
+- **Context-aware execution** – structured graph metadata[^dag] flows into the scheduler so you can prioritise critical nodes, enforce token budgets, rate-limit API calls, and capture audit traces.
+- **Drop-in acceleration** – wrap callables, agents, or plan dictionaries with `tygent.accelerate` to obtain an executor that understands the structured representation.
+- **Adaptive workflows** – mutate the structured plan at runtime with `AdaptiveExecutor` rewrite rules for fallbacks, conditional branches, or resource-aware tuning.
+- **Multi-agent runtime** – coordinate independent agents through `MultiAgentManager` and a shared `CommunicationBus` while preserving structured plan metadata.
+- **Framework patches** – call `tygent.install()` to enable runtime helpers for integrations in `tygent.integrations.*`.
+- **Service bridge + CLI** – the `tyapi` package ships an aiohttp service and CLI that convert third-party plans into the structured format, surface prefetch hints, and benchmark sequential vs accelerated runs.
 
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 pip install tygent
 ```
 
-### Basic Usage - Accelerate Any Function
+Development installs (tests, tyapi service, docs tooling) expect Python 3.8+ and the optional extras listed in `pyproject.toml`.
 
-```python
-from tygent import accelerate
+## Quick tour
 
+The snippets below show how Tygent promotes loosely described plans into explicit structures that drive context prefetching and execution control.
 
-# Your existing code
-def research_topic(topic):
-    # Your existing research logic
-    return {"summary": f"Research on {topic}"}
-
-# Wrap the function to run via Tygent's scheduler
-accelerated_research = accelerate(research_topic)
-result = accelerated_research("AI trends")
-```
-
-### Zero-Lift Framework Patching
+### 1. Accelerate a structured plan
 
 ```python
 import asyncio
-
-import tygent
-
-# Apply patches for any installed integrations
-tygent.install()
-
-from google.generativeai import GenerativeModel
-
-model = GenerativeModel("gemini-pro")
-result = asyncio.run(model.generate_content("Hello"))
-```
-
-### Multi-Agent System
-
-```python
-import asyncio
-
-from tygent import MultiAgentManager
-
-# Create manager
-manager = MultiAgentManager("customer_support")
-
-# Add agents to the system
-class AnalyzerAgent:
-    def analyze(self, question):
-        return {"intent": "password_reset", "keywords": ["reset", "password"]}
-
-class ResearchAgent:
-    def search(self, keywords):
-        return {"help_docs": ["Reset guide", "Account recovery"]}
-
-manager.add_agent("analyzer", AnalyzerAgent())
-manager.add_agent("researcher", ResearchAgent())
-
-# Execute with optimized communication
-result = asyncio.run(
-    manager.execute({"question": "How do I reset my password?"})
-)
-```
-
-## Key Features
-
-- **🚀 Speed Improvement**: Intelligent parallel execution of independent operations
-- **💰 Cost Reduction**: Optimized token usage and API call batching
-- **🔧 Zero Code Changes**: Drop-in acceleration for existing functions and agents
-- **🧠 Smart DAG Optimization**: Automatic dependency analysis and parallel scheduling
-- **🔄 Dynamic Adaptation**: Runtime DAG modification based on conditions and failures
-- **🎯 Multi-Framework Support**: Works with CrewAI, HuggingFace, Google AI, and custom agents
-- **📄 Plan Parsing**: Build DAGs directly from framework plans or dictionaries
-- **📋 Auditing & Tracing**: Inspect plans, hook into node execution, and record results
-
-## Architecture
-
-Tygent uses Directed Acyclic Graphs (DAGs) to model and optimize your agent workflows:
-
-```
-Your Sequential Code:        Tygent Optimized:
-┌─────────────────┐         ┌─────────────────┐
-│   Step 1        │         │   Step 1        │
-└─────────────────┘         └─────────────────┘
-         │                           │
-┌─────────────────┐         ┌─────────┬───────┐
-│   Step 2        │   →     │ Step 2  │Step 3 │ (Parallel)
-└─────────────────┘         └─────────┴───────┘
-         │                           │
-┌─────────────────┐         ┌─────────────────┐
-│   Step 3        │         │   Step 4        │
-└─────────────────┘         └─────────────────┘
-```
-
-## Advanced Usage
-
-### Dynamic DAG Modification
-
-```python
 from tygent import accelerate
-from tygent.adaptive_executor import AdaptiveExecutor
-
-
-# Workflow that adapts to failures and conditions
-@accelerate
-async def travel_planning_workflow(destination):
-    # Tygent automatically handles:
-    # - API failures with fallback services
-    # - Conditional branching based on weather
-    # - Resource-aware execution adaptation
-    
-    weather = await get_weather(destination)  # Primary API
-    # Auto-fallback to backup_weather_service if primary fails
-    
-    if weather["condition"] == "rain":
-        # Dynamically adds indoor alternatives node
-        recommendations = await get_indoor_alternatives(destination)
-    else:
-        recommendations = await get_outdoor_activities(destination)
-    
-    return recommendations
-```
-
-### Integration Examples
-
-#### Example: Accelerating a LangChain Agent
-```python
-from tygent import accelerate
-
-
-# Your existing LangChain agent
-class MockLangChainAgent:
-    def run(self, query):
-        return f"LangChain response to: {query}"
-
-agent = MockLangChainAgent()
-
-# Accelerate it
-accelerated_agent = accelerate(agent)
-result = accelerated_agent.run("Analyze market trends")
-```
-
-#### Example: LangGraph Multi-Agent Workflow
-
-See [`examples/langgraph_tata_capital_example.py`](examples/langgraph_tata_capital_example.py) for a
-complete example that builds a LangGraph workflow from a JSON agent specification,
-uses OpenAI's ChatGPT model, and compares execution with and without Tygent to
-measure latency and token savings.
-It also provides curated benchmark conversations of varying lengths (5 to 50 messages) that map to each agent state so you can reproduce multi-step flows without crafting transcripts manually.
-
-#### Custom Multi-Agent System
-```python
-import asyncio
-
-from tygent import DAG, LLMNode, MultiAgentManager, ToolNode
-
-# Create a DAG for manual workflow control
-dag = DAG("content_generation")
-
-def research_function(inputs):
-    return {"research_data": f"Data about {inputs.get('topic', 'general')}"}
-
-class SimpleLLMNode(LLMNode):
-    async def execute(self, inputs):
-        # Normally this would call an LLM; here we just format text
-        return {"outline": f"Outline for {inputs.get('research_data', '')}"}
-
-dag.add_node(ToolNode("research", research_function))
-dag.add_node(SimpleLLMNode("outline"))
-dag.add_edge("research", "outline")
-
-result = asyncio.run(dag.execute({"topic": "AI trends"}))
-```
-
-### Parsing Plans
-
-Tygent can convert structured plans into executable DAGs with `parse_plan`.
-
-```python
-from tygent import Scheduler, accelerate, parse_plan
 
 plan = {
-    "name": "math",
+    "name": "market_research",
     "steps": [
-        {"name": "add", "func": add_fn, "critical": True},
-        {"name": "mult", "func": mult_fn, "dependencies": ["add"]},
+        {"name": "collect", "func": lambda inputs: {"sources": inputs["query"]}},
+        {
+            "name": "summarize",
+            "func": lambda inputs: f"Summary: {inputs['collect']['sources']}",
+            "dependencies": ["collect"],
+            "critical": True,
+        },
     ],
 }
 
-# Build a DAG manually
-dag, critical = parse_plan(plan)
-scheduler = Scheduler(dag)
-scheduler.priority_nodes = critical
 
-# Or accelerate the plan directly (works with frameworks exposing `get_plan`)
-run_plan = accelerate(plan)
+async def main() -> None:
+    execute_plan = accelerate(plan)
+    result = await execute_plan({"query": "AI funding"})
+    print(result["results"]["summarize"])
+
+
+asyncio.run(main())
 ```
 
-If you have multiple plans (e.g. produced by different LLMs) you can
-combine them into a single DAG:
+Passing a plan dictionary produces a scheduler-backed executor that preserves metadata (critical steps, edge mappings, etc.) and returns the scheduler output structure—one of the structured formats Tygent can derive from loosely specified plans.
+
+### 2. Drop-in acceleration for existing code
 
 ```python
-from tygent import parse_plans, Scheduler
+from tygent import accelerate
 
-dag, critical = parse_plans([plan_a, plan_b])
-scheduler = Scheduler(dag)
-scheduler.priority_nodes = critical
+@accelerate
+def fetch_profile(user_id: str) -> dict:
+    # Your existing implementation
+    return {"user": user_id}
+
+profile = fetch_profile("abc123")
 ```
+
+`accelerate` unwraps sync or async callables and inspects attached plans when available (e.g. LangChain, Google ADK runners, OpenAI Assistants). When the framework exposes a plan or workflow, Tygent parses it into the structured graph[^dag] and schedules it using the built-in executor.
+
+### 3. Build the structured graph directly
+
+```python
+import asyncio
+from tygent import DAG, ToolNode, Scheduler
+
+dag = DAG("demo")
+dag.add_node(ToolNode("search", lambda inputs: {"hits": ["url"]}))
+dag.add_node(ToolNode("summarize", lambda inputs: f"Summary of {inputs['search']['hits']}"))
+dag.add_edge("search", "summarize")
+
+scheduler = Scheduler(dag)
+result = asyncio.run(scheduler.execute({"query": "latest research"}))
+print(result["results"]["summarize"])  # -> "Summary of ['url']"
+```
+
+The scheduler exposes token budgeting, request throttling, audit hooks, and critical path prioritisation through `Scheduler.configure`.
+
+### 4. Adaptive execution
+
+```python
+import asyncio
+from tygent import AdaptiveExecutor, create_fallback_rule
+from tygent import ToolNode, DAG
+
+# Base graph
+base = DAG("workflow")
+base.add_node(ToolNode("primary", lambda inputs: 1 / inputs.get("divisor", 1)))
+
+executor = AdaptiveExecutor(
+    base,
+    rewrite_rules=[
+        create_fallback_rule(
+            error_condition=lambda state: "error" in state.get("results", {}).get("primary", {}),
+            fallback_node_creator=lambda dag, state: ToolNode("fallback", lambda _inputs: 1),
+            rule_name="fallback_on_error",
+        )
+    ],
+)
+
+
+async def main() -> None:
+    outputs = await executor.execute({"divisor": 0})
+    print(outputs["results"].keys())
+
+
+asyncio.run(main())
+```
+
+Rewrite rules receive intermediate state and can inject new nodes or branches before the scheduler re-runs the structured graph[^dag].
+
+### 5. Coordinate multiple agents
+
+```python
+import asyncio
+from tygent import MultiAgentManager
+
+manager = MultiAgentManager("support")
+
+
+class Analyzer:
+    async def execute(self, inputs):
+        return {"keywords": inputs["question"].split()}
+
+
+class Retrieval:
+    async def execute(self, inputs):
+        return {"docs": ["reset-guide.md"]}
+
+
+manager.add_agent("analyzer", Analyzer())
+manager.add_agent("retrieval", Retrieval())
+
+
+async def main() -> None:
+    result = await manager.execute({"question": "How do I reset my password?"})
+    print(result)
+
+
+asyncio.run(main())
+```
+
+The manager runs agents concurrently and uses `CommunicationBus` for message passing when agents opt in.
+
+## Service bridge and SaaS example
+
+The Python repository bundles a mini SaaS-style planner under `tyapi/`:
+
+- `ServicePlanBuilder` converts JSON specs (e.g. from the service) into executable plans by templating prompts, tagging critical nodes, and wiring redundancy hints.
+- `execute_service_plan` prefetches referenced links (via `prefetch_many`) and executes the resulting structured graph[^dag] with optional parallelism limits.
+- `tyapi.service.cli` provides commands to register accounts, issue API keys, configure ingestors, and run an aiohttp server that exposes `/v1/plan/convert` and `/v1/plan/benchmark`.
+
+Run the service locally:
+
+```bash
+# Install in editable mode for development
+pip install -e .[dev]
+
+# Register an account and start the server
+python -m tyapi.service.cli register --name "Acme" --email "ops@example.com"
+python -m tyapi.service.cli serve --port 8080
+```
+
+The accompanying web UI (served from `tyapi/frontend/`) lets you paste framework-specific plans, choose redundancy settings, and compare sequential vs accelerated execution latencies.
+
+## Examples & integrations
+
+A collection of runnable samples lives in `examples/`:
+
+- `advanced_python_example.py` – end-to-end structured graph[^dag] creation and execution
+- `dynamic_dag_example.py` – AdaptiveExecutor rewrite rules in action on the structured graph[^dag]
+- `langchain_integration.py` – working with popular agent frameworks
+- `crewai_market_analysis.py`, `google_adk_market_analysis.py` – integration-specific accelerators
+
+Call `tygent.install()` to load integration patches (Anthropic, Google AI, HuggingFace, Microsoft AI, Salesforce) before instantiating their SDK clients.
+
+## Editor extensions
+
+Tygent ships helper extensions for embedding the structured planner inside popular IDEs:
+
+- **VS Code** (`vscode-extension/`) – the *Tygent: Enable Agent* command inserts `tygent.install()` and required imports into the active Python file, making it easy to convert agents in place.
+- **Cursor** (`cursor-extension/`) – mirrors the VS Code command with a Cursor-specific *Tygent: Enable Agent (Cursor)* action so Cursor users can patch working files without leaving the editor.
+
+Build either extension with `npm run compile` inside the respective folder, then use VS Code’s `Extension Development Host` or Cursor’s extension loader to test install the generated package.
 
 ## Testing
 
-### Running Tests
-
-Make sure to install the package in editable mode before executing the tests.
-
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio
-
-# Install package in development mode
-pip install -e .
-
-# Run core tests (always pass)
-pytest tests/test_dag.py tests/test_multi_agent.py -v
-
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=tygent --cov-report=html
+pip install -e .[dev]
+pytest tests -q
 ```
 
-### Test Coverage
+Targeted suites exist for the tyapi service (`pytest tyapi/tests -q`) and core structured graph behaviour[^dag] (`pytest tests/test_dag.py`). The repository uses `pytest-asyncio` for async flows; see `pytest.ini` for configuration.
 
-Our test suite covers:
-- **Core DAG functionality**: Node management, topological sorting, parallel execution
-- **Multi-agent communication**: Message passing, agent orchestration, conversation history
-- **Async operations**: Proper async/await handling, concurrent execution
-- **Error handling**: Graceful failure recovery, fallback mechanisms
+## Project layout
 
-**Current Status**: 14/14 core tests passing ✅
-
-#### Recent Test Fixes (v1.1)
-- Fixed Message interface to match TypedDict implementation
-- Corrected async timestamp handling using `asyncio.get_event_loop().time()`
-- Added pytest.ini configuration for proper async test support
-- Updated MultiAgentManager constructor calls with required name parameter
-- Removed dependencies on non-existent classes (AgentRole, OptimizationSettings)
-
-### CI/CD
-
-GitHub Actions workflow automatically runs:
-- **Multi-version testing**: Python 3.8, 3.9, 3.10, 3.11
-- **Multi-platform**: Ubuntu, macOS, Windows  
-- **Code quality**: flake8 linting, black formatting, mypy type checking
-- **Package building**: Automated wheel and source distribution creation
-- **PyPI publishing**: Automatic publishing on main branch pushes
-- **Coverage reporting**: HTML and LCOV coverage reports
-
-Triggers: Every push and pull request to main/develop branches
-
-## Framework Integrations
-
-### Supported Frameworks
-- **CrewAI**: Multi-agent coordination
-- **Microsoft Semantic Kernel**: Plugin optimization
-- **LangSmith**: Experiment tracking integration
-- **LangFlow**: Visual workflow authoring
-- **Custom Agents**: Universal function acceleration
-
-### External Service Integrations
-- **OpenAI**: GPT-4, GPT-3.5-turbo optimization
-- **Google AI**: Gemini model integration
-- **Microsoft Azure**: Azure OpenAI service
-- **Salesforce**: Einstein AI and CRM operations
-- **HuggingFace**: Transformer models
-
-## Performance Benchmarks
-
-Benchmark tests live under `tests/benchmarks/` and compare sequential
-execution with Tygent's scheduler. Typical results on a small DAG of four
-dependent tasks:
-
-| Scenario                 | Time (s) |
-|--------------------------|---------:|
-| Sequential execution     | ~0.70    |
-| Scheduler (1 worker)     | ~0.72    |
-| Scheduler (2 workers)    | ~0.52    |
-
-Run the benchmarks using:
-
-```bash
-pip install -e .
-pytest tests/benchmarks/ -v
+```
+tygent/
+│   accelerate.py      # drop-in wrappers and framework adapters
+│   scheduler.py       # execution engine with hooks & budgets
+│   adaptive_executor.py
+│   multi_agent.py
+│   service_bridge.py
+│   integrations/      # opt-in SDK patches
+└── tyapi/             # SaaS planner service and CLI
 ```
 
-## Development
+Additional tooling (editor extensions, docs) lives under `cursor-extension/`, `vscode-extension/`, and `docs/`.
 
-### Project Structure
-```
-tygent-py/
-├── tygent/
-│   ├── __init__.py          # Main exports
-│   ├── accelerate.py        # Core acceleration wrapper
-│   ├── dag.py              # DAG implementation
-│   ├── nodes.py            # Node types (Tool, LLM, etc.)
-│   ├── scheduler.py        # Execution scheduler
-│   ├── multi_agent.py      # Multi-agent system
-│   ├── adaptive_executor.py # Dynamic DAG modification
-│   └── integrations/       # Framework integrations
-├── tests/                  # Test suite
-├── examples/              # Usage examples
-└── docs/                  # Documentation
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Install development dependencies: `pip install -e ".[dev]"`
-4. Run tests: `pytest tests/ -v`
-5. Commit changes: `git commit -am 'Add feature'`
-6. Push to branch: `git push origin feature-name`
-7. Submit a pull request
-
-### Code Quality
-
-- **Type hints**: Full type annotation coverage
-- **Testing**: Comprehensive test suite with >90% coverage
-- **Linting**: Black formatting, flake8 compliance
-- **Documentation**: Detailed docstrings and examples
-
-## VS Code Extension
-
-The `vscode-extension` folder provides a simple Visual Studio Code extension. Use the **Tygent: Enable Agent** command to insert `tygent.install()` into the active Python file, converting existing agent implementations to use Tygent automatically.
-
-## Cursor Extension
-
-The `cursor-extension` folder ships a Cursor editor extension with the **Tygent: Enable Agent (Cursor)** command. It adds `tygent.install()` (and the import if missing) to the current Python file while respecting shebang headers, giving Cursor users the same one-click conversion workflow.
-
-## Editor Extension Guide
-
-Need a step-by-step walkthrough for packaging and using the extensions in your environment? Read the [customer extension README](docs/editor-extensions/README.md) for installation, usage, and benchmarking instructions.
-
-## License
-
-Creative Commons Attribution-NonCommercial 4.0 International License.
-
-See [LICENSE](LICENSE) for details.
-
-## Support
-
-- **Documentation**: [https://tygent.ai/docs](https://tygent.ai/docs)
-- **Issues**: [GitHub Issues](https://github.com/tygent-ai/tygent-py/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/tygent-ai/tygent-py/discussions)
-- **Email**: support@tygent.ai
+[^dag]: Tygent materialises plans as typed directed acyclic graphs (DAGs) so dependencies, context-prefetch hints, and critical paths stay explicit for the execution engine and Recontext-compatible context fabric.
 
 ---
-
 **Transform your agents. Accelerate your AI.**
+Need help? Open a GitHub issue or reach out at support@tygent.ai.
