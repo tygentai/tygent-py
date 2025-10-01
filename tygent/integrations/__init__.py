@@ -61,6 +61,21 @@ except ImportError:
     pass
 
 try:
+    from .claude_code import ClaudeCodePlanAdapter
+except ImportError:
+    pass
+
+try:
+    from .gemini_cli import GeminiCLIPlanAdapter
+except ImportError:
+    pass
+
+try:
+    from .openai_codex import OpenAICodexPlanAdapter
+except ImportError:
+    pass
+
+try:
     from .langsmith import LangSmithTracker
 except ImportError:
     pass
@@ -77,5 +92,8 @@ __all__ = [
     "CrewAIIntegration",
     "AnthropicIntegration",
     "HuggingFaceIntegration",
+    "ClaudeCodePlanAdapter",
+    "GeminiCLIPlanAdapter",
+    "OpenAICodexPlanAdapter",
     "LangSmithTracker",
 ]

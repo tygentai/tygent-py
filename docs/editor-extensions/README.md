@@ -39,11 +39,11 @@ cd tygent-py
 ### Convert a Python agent
 1. Open the Python file that defines your agent.
 2. Run **Tygent: Enable Agent** from the Command Palette.
-3. The extension inserts `import tygent` and `tygent.install()` at the top of the file. If the file starts with a shebang (`#!`) the snippet is placed right after it, and the command quietly exits if the file already calls `tygent.install()` so you never get duplicate imports.【F:vscode-extension/src/extension.ts†L3-L24】
+3. The extension inserts `import tygent` and a `tygent.install([...])` call preloaded with the default integrations (Google AI, Anthropic, Hugging Face, Microsoft AI, Salesforce, Claude Code, Gemini CLI, OpenAI Codex) at the top of the file. If the file starts with a shebang (`#!`) the snippet is placed right after it, and the command quietly exits if the file already calls `tygent.install(` so you never get duplicate imports.【F:vscode-extension/src/extension.ts†L1-L38】
 4. Save the file and run your agent as usual—Tygent now accelerates downstream framework calls automatically.
 
 ### Roll back
-If you want to revert the change, simply remove the inserted `import tygent` and `tygent.install()` lines. Re-running the command after manual edits is safe; the extension re-applies the snippet only when it is missing.【F:vscode-extension/src/extension.ts†L9-L24】
+If you want to revert the change, simply remove the inserted `import tygent` statement and the generated `tygent.install([...])` call. Re-running the command after manual edits is safe; the extension re-applies the snippet only when it is missing.【F:vscode-extension/src/extension.ts†L1-L38】
 
 ---
 
@@ -67,7 +67,7 @@ npx @vscode/vsce package
 ### Convert a Python agent in Cursor
 1. Open any Python file you want to accelerate.
 2. Run **Tygent: Enable Agent (Cursor)** from the Command Palette.
-3. The command confirms the document is a Python file, adds the import only when it is missing, honours shebang headers, and surfaces errors if the editor cannot be modified.【F:cursor-extension/src/extension.ts†L9-L49】
+3. The command confirms the document is a Python file, adds the import only when it is missing, honours shebang headers, and surfaces errors if the editor cannot be modified. It now inserts the same pre-populated `tygent.install([...])` list used by the VS Code extension so Claude Code, Gemini CLI, and OpenAI Codex planners are patched automatically.【F:cursor-extension/src/extension.ts†L1-L53】
 4. Save the file; your agent now boots with Tygent every time it runs inside Cursor.
 
 ---
@@ -88,7 +88,7 @@ npx @vscode/vsce package
 
 ## Troubleshooting
 - **Command unavailable** – ensure the extension is enabled and you are running the correct command (`Tygent: Enable Agent` in VS Code or `Tygent: Enable Agent (Cursor)` in Cursor).
-- **Nothing happens** – check whether the file already contains `tygent.install()`; the extensions intentionally avoid inserting duplicate snippets.【F:vscode-extension/src/extension.ts†L9-L24】【F:cursor-extension/src/extension.ts†L22-L48】
+- **Nothing happens** – check whether the file already contains `tygent.install(`; the extensions intentionally avoid inserting duplicate snippets.【F:vscode-extension/src/extension.ts†L1-L38】【F:cursor-extension/src/extension.ts†L1-L53】
 - **Wrong file type** – the Cursor command warns when the active document is not a Python file. Switch back to your agent module and re-run the command.【F:cursor-extension/src/extension.ts†L16-L48】
 
 Need more help? File an issue in this repository with details about your editor version and the Python agent you are converting.

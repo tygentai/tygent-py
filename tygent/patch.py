@@ -12,6 +12,9 @@ def install(modules: Optional[List[str]] = None) -> None:
         "tygent.integrations.huggingface",
         "tygent.integrations.microsoft_ai",
         "tygent.integrations.salesforce",
+        "tygent.integrations.claude_code",
+        "tygent.integrations.gemini_cli",
+        "tygent.integrations.openai_codex",
     ]
     for mod_name in modules or default:
         try:
