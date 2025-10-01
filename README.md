@@ -13,6 +13,7 @@ Tygent reshapes unstructured LLM agent plans into structured execution blueprint
 - **Adaptive workflows** – mutate the structured plan at runtime with `AdaptiveExecutor` rewrite rules for fallbacks, conditional branches, or resource-aware tuning.
 - **Multi-agent runtime** – coordinate independent agents through `MultiAgentManager` and a shared `CommunicationBus` while preserving structured plan metadata.
 - **Framework patches** – call `tygent.install()` to enable runtime helpers for integrations in `tygent.integrations.*`.
+- **Planner adapters** – convert Claude Code, Gemini CLI, and OpenAI Codex planning payloads into scheduler-ready service plans via `tygent.integrations.{claude_code, gemini_cli, openai_codex}`.
 - **Service bridge + CLI** – the `tyapi` package ships an aiohttp service and CLI that convert third-party plans into the structured format, surface prefetch hints, and benchmark sequential vs accelerated runs.
 
 ## Installation
@@ -156,6 +157,30 @@ asyncio.run(main())
 ```
 
 The manager runs agents concurrently and uses `CommunicationBus` for message passing when agents opt in.
+
+
+## Planner adapters
+
+Tygent can ingest planning payloads from popular IDE assistants out of the box.
+The adapters in `tygent.integrations.{claude_code, gemini_cli, openai_codex}`
+turn the structures that Claude Code, Gemini CLI, and OpenAI Codex emit into
+`ServicePlan` objects that the scheduler can execute immediately.
+
+```python
+import asyncio
+
+from tygent.integrations.claude_code import ClaudeCodePlanAdapter
+from tygent.service_bridge import execute_service_plan
+
+adapter = ClaudeCodePlanAdapter(payload)  # payload comes from Claude Code
+service_plan = adapter.to_service_plan()
+result = asyncio.run(execute_service_plan(service_plan, context_inputs))
+```
+
+If you call `tygent.install()` (or let the VS Code / Cursor extensions insert the
+bootstrap snippet) the adapters patch their respective clients automatically, so
+new planning payloads arrive in Tygent's structured format without extra glue
+code.
 
 ## Service bridge and SaaS example
 

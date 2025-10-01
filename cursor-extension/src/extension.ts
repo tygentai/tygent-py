@@ -1,8 +1,25 @@
 import * as vscode from 'vscode';
 
+const DEFAULT_MODULES = [
+    'tygent.integrations.google_ai',
+    'tygent.integrations.anthropic',
+    'tygent.integrations.huggingface',
+    'tygent.integrations.microsoft_ai',
+    'tygent.integrations.salesforce',
+    'tygent.integrations.claude_code',
+    'tygent.integrations.gemini_cli',
+    'tygent.integrations.openai_codex',
+];
+
 function buildInsertion(includeImport: boolean): string {
     const importBlock = includeImport ? 'import tygent\n\n' : '';
-    return `${importBlock}tygent.install()\n\n`;
+    const installLines = [
+        'tygent.install([',
+        ...DEFAULT_MODULES.map(module => `    "${module}",`),
+        '])',
+        '',
+    ];
+    return `${importBlock}${installLines.join('\n')}`;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -20,7 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const text = document.getText();
-        if (text.includes('tygent.install()')) {
+        if (text.includes('tygent.install(')) {
             vscode.window.showInformationMessage('Tygent is already installed in this file.');
             return;
         }
