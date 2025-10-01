@@ -1,9 +1,10 @@
-# Tygent (Python)
-
-Tygent reshapes unstructured LLM agent plans into structured execution blueprints so downstream tools know which context to fetch and when to run each step. Typed execution graphs[^dag] are the core structure the runtime emits, giving you explicit dependencies, metadata, and prefetch hints that the scheduler can consume for reliable, optimised execution.
 [![PyPI version](https://badge.fury.io/py/tygent.svg)](https://badge.fury.io/py/tygent)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+# Tygent (Python)
+
+Tygent reshapes unstructured LLM agent plans into structured execution blueprints so downstream tools know which context to fetch and when to run each step. Typed execution graphs[^dag] are the core structure the runtime emits, giving you explicit dependencies, metadata, and prefetch hints that the scheduler can consume for reliable, optimised execution.
+
 
 ## Highlights
 - **Structured planner** – normalise free-form plans or framework payloads into typed steps with dependencies, tags, and prefetch directives (`parse_plan`, `ServicePlanBuilder`), exporting context fabric descriptors compatible with Recontext.
