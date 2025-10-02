@@ -16,6 +16,27 @@ Tygent reshapes unstructured LLM agent plans into structured execution blueprint
 - **Planner adapters** – convert Claude Code, Gemini CLI, and OpenAI Codex planning payloads into scheduler-ready service plans via `tygent.integrations.{claude_code, gemini_cli, openai_codex}`.
 - **Service bridge + CLI** – the `tyapi` package ships an aiohttp service and CLI that convert third-party plans into the structured format, surface prefetch hints, and benchmark sequential vs accelerated runs.
 
+## Coding-agent integrations
+
+The `tygent.integrations` package includes adapters that turn coding-assistant planning payloads into scheduler-ready `ServicePlan` objects:
+
+- `GeminiCLIPlanAdapter` (`tygent.integrations.gemini_cli`) for Google Gemini CLI plans.
+- `ClaudeCodePlanAdapter` (`tygent.integrations.claude_code`) for Anthropic Claude Code traces.
+- `OpenAICodexPlanAdapter` (`tygent.integrations.openai_codex`) for legacy OpenAI Codex workflows.
+
+```python
+import asyncio
+from tygent.integrations.gemini_cli import GeminiCLIPlanAdapter
+from tygent import Scheduler
+
+adapter = GeminiCLIPlanAdapter(gemini_payload)
+service_plan = adapter.to_service_plan()
+scheduler = Scheduler(service_plan.plan)
+results = asyncio.run(scheduler.execute(service_plan.plan))
+```
+
+Each adapter also exposes a `patch()` helper that adds a `.to_tygent_service_plan()` method to the upstream planner when the optional dependency is installed, so coding agents can emit Tygent-ready plans in-place.
+
 ## Installation
 
 ```bash
