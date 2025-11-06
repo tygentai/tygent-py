@@ -25,7 +25,14 @@ from .multi_agent import CommunicationBus, Message, MultiAgentManager
 from .nodes import BaseNode, LLMNode, Node, ToolNode
 from .patch import install
 from .plan_parser import parse_plan, parse_plans
-from .scheduler import Scheduler, StopExecution
+from .scheduler import (
+    FixedPointTermination,
+    Scheduler,
+    SingleIterationTermination,
+    StopExecution,
+    TerminationPolicy,
+)
+from .session import InMemorySessionStore, NodeContext, SessionStore
 
 __all__ = [
     "DAG",
@@ -35,6 +42,12 @@ __all__ = [
     "BaseNode",
     "Scheduler",
     "StopExecution",
+    "TerminationPolicy",
+    "SingleIterationTermination",
+    "FixedPointTermination",
+    "SessionStore",
+    "InMemorySessionStore",
+    "NodeContext",
     "Agent",
     "OpenAIAgent",
     "MultiAgentManager",

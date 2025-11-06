@@ -7,11 +7,11 @@ from typing import Any, Dict, Optional
 
 from aiohttp import web
 
+from tygent.service_bridge import ServicePlanBuilder, execute_service_plan
+
 from .auth import AuthError, AuthManager
 from .service import PlanConversionService
 from .state import ServiceState, default_state_path
-from tygent.service_bridge import ServicePlanBuilder, execute_service_plan
-
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 FRONTEND_INDEX = FRONTEND_DIR / "index.html"

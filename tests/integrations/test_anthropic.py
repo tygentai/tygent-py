@@ -1,11 +1,13 @@
 """Tests for Anthropic integration."""
 
 import unittest
+
 import pytest
+
 from tygent.integrations.anthropic import (
-    AnthropicNode,
-    AnthropicIntegration,
     AnthropicBatchProcessor,
+    AnthropicIntegration,
+    AnthropicNode,
 )
 
 

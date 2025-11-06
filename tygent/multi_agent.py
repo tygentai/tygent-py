@@ -2,10 +2,10 @@
 Multi-agent implementation for Tygent.
 """
 
-from typing import Dict, List, Any, Optional, TypedDict
 import asyncio
 import time
 import uuid
+from typing import Any, Dict, List, Optional, TypedDict
 
 
 class Message(TypedDict):

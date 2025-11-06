@@ -177,8 +177,109 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The manager runs agents concurrently and uses `CommunicationBus` for message passing when agents opt in.
+### Cyclic plans, interactive nodes, and session state
 
+Execution graphs no longer have to be acyclic. You can describe strongly connected components in plan dictionaries by adding a `loop` (or `cycle`) block to each step, optionally including a termination policy. The parser attaches the specification to the DAG metadata and the scheduler translates it into an appropriate `TerminationPolicy`:
+
+```python
+plan = {
+    "name": "customer_follow_up",
+    "steps": [
+        {
+            "name": "gather_context",
+            "func": fetch_context,
+            "loop": {
+                "group": "follow_up",
+                "termination": {"type": "fixed_point", "max_iterations": 5},
+            },
+            "interactive": True,  # surfaces prompts via scheduler hooks
+            "session": {"persist": True},  # opt-in to persistent node state
+        },
+        {
+            "name": "draft_reply",
+            "func": render_reply,
+            "dependencies": ["gather_context"],
+            "loop": {"group": "follow_up"},
+        },
+    ],
+}
+```
+
+- **Cyclic subgraphs** – every step in the same `loop.group` participates in the strongly connected component. The scheduler replays the component until the policy (single pass or fixed-point convergence) stops it. You can register additional policies programmatically with `scheduler.register_termination_policy([...], policy)`.
+- **Interactive nodes** – setting `interactive: true` adds metadata consumed by higher-level runtimes so nodes can pause execution, await user input, or surface incremental updates via hooks.
+- **Persistent session state** – use the `session` block to mark nodes whose results should be stored in the `SessionStore`. Nodes receive a `NodeContext` during execution and can call `context.load_state()` / `context.save_state()` to read or write cross-run state. The default `InMemorySessionStore` keeps data in-process, and you can inject your own store via `Scheduler(session_store=...)`.
+
+These additions are backwards compatible: DAGs without cycles continue to execute with a single pass, and nodes that ignore the lifecycle hooks still work as before.
+
+### LangGraph document-generation FSD example
+
+Tygent plugs into LangGraph-style workflows without giving up lifecycle features. The snippet below sketches a functional-specification (FSD) writer that iterates between drafting and review steps until the reviewers approve the document, while caching progress across sessions:
+
+```python
+import asyncio
+from langgraph.graph import StateGraph  # pseudo LangGraph API for illustration
+from tygent import Scheduler, parse_plan
+
+langgraph_plan = {
+    "name": "fsd_writer",
+    "steps": [
+        {
+            "name": "ingest_requirements",
+            "func": lambda inputs: {"requirements": inputs["brief"]},
+            "metadata": {"tags": ["ingest"]},
+            "session": {"persist": True},
+        },
+        {
+            "name": "draft_spec",
+            "func": lambda inputs: {"draft": render_markdown(inputs)},
+            "dependencies": ["ingest_requirements"],
+            "loop": {
+                "group": "fsd_iteration",
+                "termination": {"type": "fixed_point", "max_iterations": 4},
+            },
+            "interactive": True,
+            "session": {"persist": True},
+        },
+        {
+            "name": "collect_feedback",
+            "func": request_signoff,  # async function that prompts reviewers
+            "dependencies": ["draft_spec"],
+            "loop": {"group": "fsd_iteration"},
+            "interactive": True,
+        },
+        {
+            "name": "apply_feedback",
+            "func": lambda inputs: merge_feedback(inputs["draft_spec"], inputs["collect_feedback"]),
+            "dependencies": ["draft_spec", "collect_feedback"],
+            "loop": {"group": "fsd_iteration"},
+        },
+        {
+            "name": "publish_spec",
+            "func": lambda inputs: store_spec(inputs["draft_spec"]),
+            "dependencies": ["apply_feedback"],
+            "critical": True,
+        },
+    ],
+}
+
+dag, critical = parse_plan(langgraph_plan)
+scheduler = Scheduler(dag)
+scheduler.priority_nodes = critical
+
+async def main() -> None:
+    outputs = await scheduler.execute({"brief": open("./brief.md").read()})
+    print("Final draft:", outputs["results"]["publish_spec"])
+
+asyncio.run(main())
+```
+
+**Why Tygent?**
+- **Cyclic subgraphs without custom plumbing** – the review loop is encoded declaratively and the scheduler enforces the fixed-point policy, so you retain LangGraph’s expressiveness without manual orchestration.
+- **Interactive checkpoints** – reviewer prompts surface through node hooks, letting humans approve or edit drafts mid-run while the scheduler resumes automatically.
+- **Persistent session state** – drafts survive retries and subsequent sessions via the pluggable `SessionStore`, meaning teammates can pause/resume the FSD workflow without losing context.
+- **Critical-path prioritisation & audit trail** – the publish step is marked critical, ensuring it receives resources first, while audit hooks capture every iteration for compliance reporting.
+
+Run `examples/langgraph_fsd_example.py` to see the loop, reviewer checkpoints, and persisted state in action.
 
 ## Planner adapters
 

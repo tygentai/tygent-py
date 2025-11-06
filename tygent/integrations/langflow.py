@@ -45,7 +45,9 @@ class LangflowNode(BaseNode):
 class LangflowIntegration:
     """Execute Langflow workflows using a DAG and scheduler."""
 
-    def __init__(self, flow_data: Dict[str, Any], base_url: str = "http://localhost:7860"):
+    def __init__(
+        self, flow_data: Dict[str, Any], base_url: str = "http://localhost:7860"
+    ):
         self.flow_data = flow_data
         self.flow_id = flow_data.get("id", "flow")
         self.base_url = base_url.rstrip("/")
@@ -70,7 +72,9 @@ class LangflowIntegration:
                 self.dag.add_edge(src, tgt)
 
     # ------------------------------------------------------------------
-    def optimize(self, options: Optional[Dict[str, Any]] = None) -> "LangflowIntegration":
+    def optimize(
+        self, options: Optional[Dict[str, Any]] = None
+    ) -> "LangflowIntegration":
         options = options or {}
         if "maxParallelCalls" in options:
             self.scheduler.max_parallel_nodes = options["maxParallelCalls"]
@@ -88,7 +92,9 @@ class LangflowIntegration:
 # Convenience helpers
 
 
-def accelerate_langflow_flow(flow_data: Dict[str, Any], base_url: str = "http://localhost:7860") -> LangflowIntegration:
+def accelerate_langflow_flow(
+    flow_data: Dict[str, Any], base_url: str = "http://localhost:7860"
+) -> LangflowIntegration:
     """Return a :class:`LangflowIntegration` for the supplied flow."""
     return LangflowIntegration(flow_data, base_url)
 
@@ -146,4 +152,3 @@ def tygent_langflow(flow_data: Dict[str, Any], base_url: str = "http://localhost
         return wrapper
 
     return decorator
-

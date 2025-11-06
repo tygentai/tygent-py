@@ -2,18 +2,18 @@
 Fixed tests for the multi-agent module that match the actual implementation.
 """
 
-import unittest
-from unittest.mock import AsyncMock
 import asyncio
-import time
-import sys
 import os
+import sys
+import time
+import unittest
 import uuid
+from unittest.mock import AsyncMock
 
 # Add the parent directory to the path so we can import tygent
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from tygent.multi_agent import Message, CommunicationBus, MultiAgentManager
+from tygent.multi_agent import CommunicationBus, Message, MultiAgentManager
 
 
 class TestMessage(unittest.TestCase):

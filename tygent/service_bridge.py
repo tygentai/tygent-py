@@ -6,7 +6,6 @@ from typing import Any, Awaitable, Callable, Dict, Iterable, List, Mapping, Opti
 
 from .prefetch import prefetch_many
 
-
 PromptHandler = Callable[[str, Dict[str, Any], Dict[str, Any]], Awaitable[Any]]
 
 
@@ -30,7 +29,9 @@ class LLMRuntimeRegistry:
         try:
             handler = self._handlers[provider]
         except KeyError as exc:
-            raise RuntimeError(f"No runtime registered for provider '{provider}'") from exc
+            raise RuntimeError(
+                f"No runtime registered for provider '{provider}'"
+            ) from exc
         result = handler(prompt, step_metadata, dict(inputs))
         if asyncio.iscoroutine(result):
             return await result
@@ -40,7 +41,9 @@ class LLMRuntimeRegistry:
 DEFAULT_LLM_RUNTIME = LLMRuntimeRegistry()
 
 
-async def _echo_runtime(prompt: str, metadata: Mapping[str, Any], inputs: Dict[str, Any]) -> Dict[str, Any]:
+async def _echo_runtime(
+    prompt: str, metadata: Mapping[str, Any], inputs: Dict[str, Any]
+) -> Dict[str, Any]:
     return {"prompt": prompt, "metadata": dict(metadata), "inputs": inputs}
 
 
@@ -124,7 +127,9 @@ class ServicePlanBuilder:
             if url not in seen:
                 seen.add(url)
                 prefetch_links.append(url)
-        return ServicePlan(plan=plan_dict, prefetch_links=prefetch_links, raw=dict(payload))
+        return ServicePlan(
+            plan=plan_dict, prefetch_links=prefetch_links, raw=dict(payload)
+        )
 
     def _build_step_function(
         self,

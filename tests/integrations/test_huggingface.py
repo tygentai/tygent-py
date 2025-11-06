@@ -1,11 +1,13 @@
 """Tests for HuggingFace integration."""
 
 import unittest
+
 import pytest
+
 from tygent.integrations.huggingface import (
-    HuggingFaceNode,
-    HuggingFaceIntegration,
     HuggingFaceBatchProcessor,
+    HuggingFaceIntegration,
+    HuggingFaceNode,
 )
 
 

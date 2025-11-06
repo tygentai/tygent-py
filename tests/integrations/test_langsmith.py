@@ -1,7 +1,9 @@
 """Tests for LangSmith tracker."""
 
 import unittest
+
 import pytest
+
 from tygent.integrations.langsmith import LangSmithTracker
 
 
