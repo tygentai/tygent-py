@@ -5,7 +5,7 @@ This module logs DAG execution results to LangSmith for experiment
 tracking and monitoring.
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 try:
     from langsmith import Client as LangSmithClient
@@ -50,4 +50,3 @@ class LangSmithTracker:
         except Exception as e:  # pragma: no cover - runtime errors
             print(f"Failed to log execution to LangSmith: {e}")
             raise
-

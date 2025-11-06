@@ -72,3 +72,39 @@ class TestPlanParser(unittest.TestCase):
         mult_val, double_val = asyncio.run(run())
         self.assertEqual(mult_val, 25)
         self.assertEqual(double_val, 10)
+
+    def test_plan_cycle_metadata(self):
+        plan = {
+            "name": "loop_plan",
+            "steps": [
+                {
+                    "name": "loop_a",
+                    "func": add_fn,
+                    "dependencies": ["loop_b"],
+                    "loop": {
+                        "group": "loop",
+                        "termination": {"type": "fixed_point", "max_iterations": 3},
+                    },
+                    "interactive": True,
+                    "session": {"persist": True},
+                },
+                {
+                    "name": "loop_b",
+                    "func": mult_fn,
+                    "dependencies": ["loop_a"],
+                    "loop": {"group": "loop"},
+                },
+            ],
+        }
+
+        dag, _ = parse_plan(plan)
+        self.assertIn("cycle_policies", dag.metadata)
+        policy_map = dag.metadata["cycle_policies"]
+        self.assertIn(tuple(sorted(["loop_a", "loop_b"])), policy_map)
+        spec = policy_map[tuple(sorted(["loop_a", "loop_b"]))]
+        self.assertEqual(spec.get("type"), "fixed_point")
+        self.assertEqual(spec.get("max_iterations"), 3)
+
+        node_meta = dag.getNode("loop_a").metadata
+        self.assertTrue(node_meta.get("interactive"))
+        self.assertEqual(node_meta.get("session"), {"persist": True})

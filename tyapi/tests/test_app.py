@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -57,7 +58,10 @@ def test_plan_convert_with_spec_only(service_bundle) -> None:
 
     result = asyncio.run(service.convert(account, spec=spec))
 
-    assert {step["name"] for step in result["tygent_plan"]["steps"]} >= {"discover", "deliver"}
+    assert {step["name"] for step in result["tygent_plan"]["steps"]} >= {
+        "discover",
+        "deliver",
+    }
     assert result["prefetch"]
     assert result["spec"]["discover"]["prompt"] == "Find data"
 
@@ -74,6 +78,7 @@ def test_convert_requires_plan_or_spec(service_bundle) -> None:
     with pytest.raises(ValueError):
         asyncio.run(service.convert(account))
 
+
 def test_account_registration_and_key_routes(tmp_path) -> None:
     async def scenario() -> None:
         app = create_app(tmp_path / "state.json")
@@ -81,7 +86,11 @@ def test_account_registration_and_key_routes(tmp_path) -> None:
             async with TestClient(server) as client:
                 register_resp = await client.post(
                     "/v1/accounts/register",
-                    json={"name": "Beta", "email": "beta@example.com", "label": "default"},
+                    json={
+                        "name": "Beta",
+                        "email": "beta@example.com",
+                        "label": "default",
+                    },
                 )
                 assert register_resp.status == 201
                 register_payload = await register_resp.json()
@@ -92,7 +101,9 @@ def test_account_registration_and_key_routes(tmp_path) -> None:
                 list_resp = await client.get("/v1/accounts")
                 assert list_resp.status == 200
                 list_payload = await list_resp.json()
-                account_ids = [record["account_id"] for record in list_payload["accounts"]]
+                account_ids = [
+                    record["account_id"] for record in list_payload["accounts"]
+                ]
                 assert account_id in account_ids
 
                 new_key_resp = await client.post(
@@ -100,7 +111,10 @@ def test_account_registration_and_key_routes(tmp_path) -> None:
                 )
                 assert new_key_resp.status == 201
                 new_key_payload = await new_key_resp.json()
-                assert new_key_payload["api_key"] and new_key_payload["api_key"] != first_key
+                assert (
+                    new_key_payload["api_key"]
+                    and new_key_payload["api_key"] != first_key
+                )
 
     asyncio.run(scenario())
 

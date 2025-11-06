@@ -31,7 +31,9 @@ def test_authenticate_missing_key(state: ServiceState) -> None:
 
 def test_ingestor_configuration(state: ServiceState) -> None:
     account = state.register_account("Beta", "beta@test")
-    state.set_ingestor_config(account.account_id, {"name": "generic", "config": {"prefix": "beta"}})
+    state.set_ingestor_config(
+        account.account_id, {"name": "generic", "config": {"prefix": "beta"}}
+    )
     reloaded = ServiceState(state.path)
     stored = reloaded.get_account(account.account_id)
     assert stored

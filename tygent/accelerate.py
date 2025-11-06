@@ -46,7 +46,9 @@ def accelerate(
             builder = ServicePlanBuilder()
             service_plan = builder.build(plan_dict)
             dag, critical = parse_plan(service_plan.plan)
-            return _PlanExecutor(dag, critical, prefetch_links=service_plan.prefetch_links)
+            return _PlanExecutor(
+                dag, critical, prefetch_links=service_plan.prefetch_links
+            )
         dag, critical = parse_plan(plan_dict)
         return _PlanExecutor(dag, critical)
 

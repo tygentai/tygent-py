@@ -26,6 +26,7 @@ class DAG:
         self.edges: Dict[str, List[str]] = {}
         # Rename to match what the test expects
         self.edge_mappings: Dict[str, Dict[str, Dict[str, str]]] = {}
+        self.metadata: Dict[str, Any] = {}
 
     def addNode(self, node: Node) -> None:
         """
@@ -174,6 +175,52 @@ class DAG:
 
         return roots, leaves
 
+    def has_self_loop(self, name: str) -> bool:
+        """Return True if the node has an edge to itself."""
+
+        return name in self.edges.get(name, [])
+
+    def get_strongly_connected_components(self) -> List[List[str]]:
+        """Return strongly connected components using Tarjan's algorithm."""
+
+        index = 0
+        stack: List[str] = []
+        indices: Dict[str, int] = {}
+        lowlink: Dict[str, int] = {}
+        on_stack: Dict[str, bool] = {}
+        components: List[List[str]] = []
+
+        def strongconnect(node: str) -> None:
+            nonlocal index
+            indices[node] = index
+            lowlink[node] = index
+            index += 1
+            stack.append(node)
+            on_stack[node] = True
+
+            for successor in self.edges.get(node, []):
+                if successor not in indices:
+                    strongconnect(successor)
+                    lowlink[node] = min(lowlink[node], lowlink[successor])
+                elif on_stack.get(successor, False):
+                    lowlink[node] = min(lowlink[node], indices[successor])
+
+            if lowlink[node] == indices[node]:
+                component: List[str] = []
+                while stack:
+                    w = stack.pop()
+                    on_stack[w] = False
+                    component.append(w)
+                    if w == node:
+                        break
+                components.append(component)
+
+        for node_name in self.nodes:
+            if node_name not in indices:
+                strongconnect(node_name)
+
+        return components
+
     def copy(self) -> "DAG":
         """Create a deep copy of the DAG."""
 
@@ -188,6 +235,7 @@ class DAG:
             src: {dst: dict(meta) for dst, meta in targets.items()}
             for src, targets in self.edge_mappings.items()
         }
+        new_dag.metadata = copy.deepcopy(self.metadata)
 
         return new_dag
 

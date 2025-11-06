@@ -2,7 +2,10 @@
 Base node classes for Tygent.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    from .session import NodeContext
 
 
 def default_llm_latency_model(node: "LLMNode") -> float:
@@ -41,6 +44,21 @@ class BaseNode:
             The result of the node execution
         """
         raise NotImplementedError("Subclasses must implement execute()")
+
+    async def prepare(self, context: "NodeContext") -> None:
+        """Hook invoked before ``execute``. Default implementation is a no-op."""
+
+    async def finalize(self, context: "NodeContext", result: Any) -> None:
+        """Hook invoked after ``execute`` completes. Default implementation is a no-op."""
+
+    async def run(self, inputs: Dict[str, Any], context: "NodeContext") -> Any:
+        """
+        Execute the node with lifecycle awareness.
+
+        The default implementation simply delegates to :meth:`execute`.
+        """
+
+        return await self.execute(inputs)
 
 
 class Node(BaseNode):

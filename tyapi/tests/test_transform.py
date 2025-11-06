@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-import pytest
 from typing import Dict
 
-from tyapi.service.transform import PlanTransformer, extract_links_from_text, merge_links
+import pytest
+
+from tyapi.service.transform import (
+    PlanTransformer,
+    extract_links_from_text,
+    merge_links,
+)
 
 
 @pytest.fixture
@@ -20,7 +25,7 @@ def sample_spec() -> Dict[str, Dict[str, object]]:
             "kind": "llm",
             "prompt": "Analyze findings",
             "deps": ["gather"],
-            "links": ["https://analysis"]
+            "links": ["https://analysis"],
         },
         "validate": {
             "kind": "llm",
@@ -57,7 +62,9 @@ def test_transformer_builds_metadata(sample_spec: Dict[str, Dict[str, object]]) 
     assert plan["prefetch"]["by_step"]["analyze"] == ["https://analysis"]
 
 
-def test_transformer_redundancy_steps(sample_spec: Dict[str, Dict[str, object]]) -> None:
+def test_transformer_redundancy_steps(
+    sample_spec: Dict[str, Dict[str, object]],
+) -> None:
     transformer = PlanTransformer(redundancy_mode="steps")
     plan = transformer.transform(sample_spec)
     redundancy_steps = [s for s in plan["steps"] if s["name"].endswith("_redundancy")]
