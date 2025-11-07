@@ -47,15 +47,18 @@ from tygent.session import InMemorySessionStore
 
 CURRENT_CONTEXT = ""
 _ASYNC_CLIENT: Optional[AsyncOpenAI] = None
+TimingSample = Dict[str, float]
 TOKEN_USAGE: Dict[str, Dict[str, int]] = {}
 ITERATION_COUNTERS: Dict[str, int] = {}
-NODE_TIMINGS: Dict[str, Dict[str, List[float]]] = {}
+NODE_TIMINGS: Dict[str, Dict[str, List[TimingSample]]] = {}
+CONTEXT_START_TIMES: Dict[str, float] = {}
 
 
 def _init_context_metrics(context: str) -> None:
     TOKEN_USAGE[context] = {"prompt": 0, "completion": 0, "total": 0}
     ITERATION_COUNTERS[context] = 0
     NODE_TIMINGS[context] = defaultdict(list)
+    CONTEXT_START_TIMES[context] = perf_counter()
 
 
 def _load_dotenv(env_path: Path) -> None:
@@ -146,7 +149,15 @@ def _log(message: str) -> None:
 def _record_duration(node_name: str, start: float) -> None:
     ctx = CURRENT_CONTEXT or "global"
     timings = NODE_TIMINGS.setdefault(ctx, defaultdict(list))
-    timings[node_name].append((perf_counter() - start) * 1000.0)  # store ms
+    context_start = CONTEXT_START_TIMES.get(ctx, start)
+    duration_ms = (perf_counter() - start) * 1000.0
+    start_ms = (start - context_start) * 1000.0
+    sample = {
+        "start": max(start_ms, 0.0),
+        "end": max(start_ms + duration_ms, 0.0),
+        "duration": max(duration_ms, 0.0),
+    }
+    timings[node_name].append(sample)
 
 
 async def ingest_requirements(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -917,7 +928,6 @@ _SECTION_PLAN_STEPS: List[Dict[str, Any]] = [
             "fallback_function",
         ],
         "loop": {"group": "fsd_iteration"},
-        "session": {"persist": True},
     }
     for node_name, func in SECTION_NODE_FUNCTIONS.items()
 ]
@@ -1088,7 +1098,7 @@ def describe_plan(plan: Dict[str, Any]) -> None:
 
 
 async def run_baseline_sequential(
-    brief: str, requester: str, max_iterations: int = 5
+    brief: str, requester: str, max_iterations: int = 1
 ) -> Dict[str, Any]:
     """Sequential LangGraph-style execution without Tygent orchestration."""
 
@@ -1294,7 +1304,9 @@ async def run_tygent_orchestrated(
 
 async def rerun_with_persisted_state(
     scheduler: Scheduler, inputs: Dict[str, Any], context: str
-) -> Tuple[float, Dict[str, Any], Dict[str, int], int]:
+) -> Tuple[
+    float, Dict[str, Any], Dict[str, int], int, Dict[str, List[TimingSample]]
+]:
     """Re-execute using the same scheduler to highlight session persistence."""
 
     set_context(context)
@@ -1361,9 +1373,10 @@ async def run_demo() -> None:
     tygent_result = await run_tygent_orchestrated(
         product_brief, "fsd@acme.dev", tygent_context
     )
+    tygent_status = tygent_result["publish"].get("status", "unknown")
     print(
         f"Tygent latency: {tygent_result['elapsed']*1000:.1f} ms, "
-        f"status: {tygent_result['publish']['status']}"
+        f"status: {tygent_status}"
     )
     session_snapshot = tygent_result["session"].snapshot()
     print(
@@ -1419,7 +1432,7 @@ async def run_demo() -> None:
             "mode": "Tygent (first run)",
             "latency": tygent_result["elapsed"] * 1000,
             "iterations": tygent_result["iterations"],
-            "status": publish_result.get("status", "unknown"),
+            "status": tygent_status,
             "tokens": tygent_result["tokens"]["total"],
         },
         {
@@ -1456,7 +1469,9 @@ async def run_demo() -> None:
         ]
         print(_format_row(formatted, col_widths))
 
-    def _summarize_timings(label: str, timings: Dict[str, List[float]]) -> None:
+    def _summarize_timings(
+        label: str, timings: Dict[str, List[TimingSample]]
+    ) -> None:
         print(f"\n{label} node timings (ms):")
         if not timings:
             print("  (no timing data captured)")
@@ -1471,8 +1486,9 @@ async def run_demo() -> None:
         print(_format_row(header, widths))
         print("-" * (sum(widths) + 3 * (len(widths) - 1)))
         for node, samples in sorted(timings.items()):
-            avg = sum(samples) / len(samples)
-            mx = max(samples)
+            durations = [sample.get("duration", 0.0) for sample in samples]
+            avg = sum(durations) / len(durations)
+            mx = max(durations)
             row = [
                 node,
                 f"{avg:.1f}",
@@ -1481,9 +1497,58 @@ async def run_demo() -> None:
             ]
             print(_format_row(row, widths))
 
+    def _render_timeline(
+        label: str,
+        timings: Dict[str, List[TimingSample]],
+        total_duration_ms: float,
+        width: int = 60,
+    ) -> None:
+        print(f"\n{label} timeline (ms):")
+        if not timings or total_duration_ms <= 0:
+            print("  (no timing data captured)")
+            return
+
+        events: List[Dict[str, float]] = []
+        for node, samples in timings.items():
+            multi = len(samples) > 1
+            for idx, sample in enumerate(samples, start=1):
+                start = sample.get("start", 0.0)
+                duration = sample.get("duration", 0.0)
+                end = sample.get("end", start + duration)
+                label_suffix = f"#{idx}" if multi else ""
+                events.append(
+                    {
+                        "node": f"{node}{label_suffix}",
+                        "start": start,
+                        "end": end,
+                        "duration": duration,
+                    }
+                )
+
+        events.sort(key=lambda e: (e["start"], e["end"], e["node"]))
+
+        for event in events:
+            start = max(0.0, min(event["start"], total_duration_ms))
+            end = max(start, min(event["end"], total_duration_ms))
+            start_col = min(width - 1, int((start / total_duration_ms) * width))
+            end_col = min(
+                width, max(start_col + 1, int((end / total_duration_ms) * width))
+            )
+            bar_chars = [" "] * width
+            for idx in range(start_col, end_col):
+                bar_chars[idx] = "#"
+            bar = "".join(bar_chars)
+            print(
+                f"{event['node']:<25} | {bar} | "
+                f"{event['start']:.1f}-{event['end']:.1f} ({event['duration']:.1f})"
+            )
+
     _summarize_timings("Baseline", baseline_timings)
     _summarize_timings("Tygent (first run)", tygent_timings)
     _summarize_timings("Tygent (re-run)", rerun_timings)
+    _render_timeline("Baseline", baseline_timings, baseline_result["elapsed"] * 1000)
+    _render_timeline("Tygent (first run)", tygent_timings, tygent_result["elapsed"] * 1000)
+    _render_timeline("Tygent (re-run)", rerun_timings, repeat_latency * 1000)
 
     print("\n=== Summary ===")
     print("• Cycles are handled automatically via the fixed-point termination policy.")
